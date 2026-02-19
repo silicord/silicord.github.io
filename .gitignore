@@ -1,0 +1,8 @@
+*.log
+.DS_Store
+lucov*
+*.o
+*.so
+*.dll
+# If you eventually put your token in a file:
+.env
