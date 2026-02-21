@@ -1,5 +1,5 @@
 package = "silicord"
-version = "dev-1"
+version = "0.2.0-1"
 source = {
    url = "git+https://github.com/mrpandolaofficial-art/silicord.git"
 }
