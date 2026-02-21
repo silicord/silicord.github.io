@@ -1,8 +1,8 @@
 package = "silicord"
-version = "0.2.1-1"
+version = "0.3.0-1"
 source = {
     url = "git+https://github.com/mrpandolaofficial-art/silicord.git",
-    tag = "v0.2.1"  -- point to the new tag
+    tag = "v0.2.3"  -- point to the new tag
 }
 description = {
    summary = "A Discord API wrapper for Lua with Luau-inspired syntax.",
