@@ -1,5 +1,5 @@
 package = "silicord"
-version = "0.3.0-2"
+version = "0.3.1-1"
 source = {
     url = "git+https://github.com/mrpandolaofficial-art/silicord.git",
     tag = "v0.3.0"  -- point to the new tag

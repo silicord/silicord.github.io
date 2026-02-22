@@ -39,7 +39,6 @@ local function url_encode(str)
 end
 
 local function iso8601(seconds_from_now)
-    -- Returns an ISO8601 timestamp N seconds in the future, for timeouts
     return os.date("!%Y-%m-%dT%H:%M:%SZ", os.time() + seconds_from_now)
 end
 
@@ -166,7 +165,6 @@ local function make_request_sync(token, url, method, body)
         return make_request_sync(token, url, method, body)
     end
     if code ~= 200 and code ~= 201 and code ~= 204 then
-        log_error("Request failed. Code: " .. tostring(code) .. " | " .. url)
         return nil, code
     end
     return json.decode(body_str), code
@@ -178,27 +176,68 @@ local function make_request(token, url, method, body)
     end)
 end
 
--- 6. Slash Command Option Types
+-- 6. Token Validator
+-- Checks token and app_id before starting the bot.
+-- Returns true if valid, false + reason if not.
+local function validate_credentials(token, app_id)
+    local https = require("ssl.https")
+    local result = {}
+    local _, code = https.request({
+        url    = "https://discord.com/api/v10/users/@me",
+        method = "GET",
+        headers = {
+            ["Authorization"] = "Bot " .. token,
+            ["Content-Type"]  = "application/json",
+            ["Content-Length"] = "0"
+        },
+        source = ltn12.source.string(""),
+        sink   = ltn12.sink.table(result),
+        verify = "none"
+    })
+    if code ~= 200 then
+        return false, "token"
+    end
+    if app_id then
+        local result2 = {}
+        local _, code2 = https.request({
+            url    = string.format("https://discord.com/api/v10/applications/%s/commands", app_id),
+            method = "GET",
+            headers = {
+                ["Authorization"] = "Bot " .. token,
+                ["Content-Type"]  = "application/json",
+                ["Content-Length"] = "0"
+            },
+            source = ltn12.source.string(""),
+            sink   = ltn12.sink.table(result2),
+            verify = "none"
+        })
+        if code2 ~= 200 then
+            return false, "app_id"
+        end
+    end
+    return true
+end
+
+-- 7. Slash Command Option Types
 local OPTION_TYPES = {
     string  = 3, integer = 4, bool    = 5,
     boolean = 5, user    = 6, channel = 7,
     role    = 8, number  = 10, any    = 3
 }
 
--- 7. Member Object
--- Represents a guild member with actions you can perform on them
+-- 8. Member Object
 local Member = {}
 Member.__index = Member
 
 function Member.new(data, guild_id, token)
     return setmetatable({
-        user       = data.user,
-        id         = data.user and data.user.id,
-        username   = data.user and data.user.username,
-        nickname   = data.nick,
-        roles      = data.roles or {},
-        _guild_id  = guild_id,
-        _token     = token
+        user      = data.user,
+        id        = data.user and data.user.id,
+        username  = data.user and data.user.username,
+        nickname  = data.nick,
+        roles     = data.roles or {},
+        _guild_id = guild_id,
+        _token    = token
     }, Member)
 end
 
@@ -220,7 +259,6 @@ function Member:Ban(reason, delete_days)
 end
 
 function Member:Timeout(seconds, reason)
-    -- Uses Discord's native timeout (communication_disabled_until)
     local body = { communication_disabled_until = iso8601(seconds) }
     if reason then body.reason = reason end
     make_request_sync(self._token,
@@ -285,7 +323,7 @@ function Member:SendDM(text, embed)
     end)
 end
 
--- 8. Guild Object
+-- 9. Guild Object
 local Guild = {}
 Guild.__index = Guild
 
@@ -298,31 +336,28 @@ function Guild.new(data, token)
     }, Guild)
 end
 
--- Channel type map
 local CHANNEL_TYPES = {
-    text        = 0,
-    dm          = 1,
-    voice       = 2,
-    category    = 4,
+    text         = 0,
+    dm           = 1,
+    voice        = 2,
+    category     = 4,
     announcement = 5,
-    stage       = 13,
-    forum       = 15,
-    media       = 16,
+    stage        = 13,
+    forum        = 15,
+    media        = 16,
 }
 
 function Guild:CreateChannel(name, kind, options)
-    -- kind: "text", "voice", "category", "announcement", "stage", "forum", "media"
-    -- options: { topic, parent_id, nsfw, bitrate, user_limit, slowmode }
     options = options or {}
     local body = {
-        name                 = name,
-        type                 = CHANNEL_TYPES[kind] or 0,
-        topic                = options.topic,
-        parent_id            = options.parent_id,
-        nsfw                 = options.nsfw,
-        bitrate              = options.bitrate,
-        user_limit           = options.user_limit,
-        rate_limit_per_user  = options.slowmode,
+        name                = name,
+        type                = CHANNEL_TYPES[kind] or 0,
+        topic               = options.topic,
+        parent_id           = options.parent_id,
+        nsfw                = options.nsfw,
+        bitrate             = options.bitrate,
+        user_limit          = options.user_limit,
+        rate_limit_per_user = options.slowmode,
     }
     local data = make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/channels", self.id),
@@ -332,7 +367,6 @@ function Guild:CreateChannel(name, kind, options)
 end
 
 function Guild:EditChannel(channel_id, options)
-    -- options: { name, topic, nsfw, parent_id, slowmode, bitrate, user_limit }
     make_request_sync(self._token,
         string.format("https://discord.com/api/v10/channels/%s", channel_id),
         "PATCH", json.encode(options))
@@ -357,14 +391,12 @@ function Guild:CreateRole(name, color, permissions)
 end
 
 function Guild:EditRole(role_id, options)
-    -- options: { name, color, hoist, mentionable, permissions }
     if options.color and type(options.color) == "string" then
         options.color = hex_to_int(options.color)
     end
-    local data = make_request_sync(self._token,
+    return make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/roles/%s", self.id, role_id),
         "PATCH", json.encode(options))
-    return data
 end
 
 function Guild:DeleteRole(role_id)
@@ -379,7 +411,6 @@ function Guild:GetMembers(limit)
         string.format("https://discord.com/api/v10/guilds/%s/members?limit=%d", self.id, limit or 100),
         "GET", "")
     if not data then return {} end
-    -- Return Member objects
     local members = {}
     for _, m in ipairs(data) do
         table.insert(members, Member.new(m, self.id, self._token))
@@ -415,29 +446,23 @@ function Guild:GetRoles()
     return data or {}
 end
 
--- Kick/Ban kept on Guild too for convenience
 function Guild:KickMember(user_id, reason)
-    local m = Member.new({ user = { id = user_id, username = user_id } }, self.id, self._token)
-    m:Kick(reason)
+    Member.new({ user = { id = user_id, username = user_id } }, self.id, self._token):Kick(reason)
 end
 
 function Guild:BanMember(user_id, reason)
-    local m = Member.new({ user = { id = user_id, username = user_id } }, self.id, self._token)
-    m:Ban(reason)
+    Member.new({ user = { id = user_id, username = user_id } }, self.id, self._token):Ban(reason)
 end
 
--- Scheduled Events
 function Guild:CreateEvent(options)
-    -- options: { name, description, start_time, end_time, location, channel_id, type }
-    -- type: "stage"=1, "voice"=2, "external"=3 (default external)
     local entity_type = ({ stage=1, voice=2, external=3 })[options.type] or 3
     local body = {
-        name                  = options.name,
-        description           = options.description,
-        scheduled_start_time  = options.start_time,
-        scheduled_end_time    = options.end_time,
-        entity_type           = entity_type,
-        privacy_level         = 2,  -- GUILD_ONLY
+        name                 = options.name,
+        description          = options.description,
+        scheduled_start_time = options.start_time,
+        scheduled_end_time   = options.end_time,
+        entity_type          = entity_type,
+        privacy_level        = 2,
     }
     if entity_type == 3 then
         body.entity_metadata = { location = options.location or "TBD" }
@@ -460,10 +485,9 @@ function Guild:EditEvent(event_id, options)
         options.entity_metadata = { location = options.location }
         options.location = nil
     end
-    local data = make_request_sync(self._token,
+    return make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/scheduled-events/%s", self.id, event_id),
         "PATCH", json.encode(options))
-    return data
 end
 
 function Guild:DeleteEvent(event_id)
@@ -480,19 +504,15 @@ function Guild:GetEvents()
     return data or {}
 end
 
--- Edit the guild itself
 function Guild:Edit(options)
-    -- options: { name, description, afk_channel_id, system_channel_id }
     local data = make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s", self.id),
         "PATCH", json.encode(options))
-    if data then
-        self.name = data.name or self.name
-    end
+    if data then self.name = data.name or self.name end
     return data
 end
 
--- 9. Interaction Object
+-- 10. Interaction Object
 local Interaction = {}
 Interaction.__index = Interaction
 
@@ -587,7 +607,7 @@ function Interaction:SendPrivateMessage(text, embed)
     end)
 end
 
--- 10. Component Builders
+-- 11. Component Builders
 function silicord.Button(data)
     local styles = { primary=1, secondary=2, success=3, danger=4, link=5 }
     return {
@@ -620,7 +640,7 @@ function silicord.ActionRow(...)
     return { type = 1, components = components }
 end
 
--- 11. Message Object
+-- 12. Message Object
 local Message = {}
 Message.__index = Message
 
@@ -636,7 +656,6 @@ function Message.new(data, token, cache)
     return self
 end
 
--- Reply: pings the user (uses message_reference)
 function Message:Reply(text, embed, components)
     local payload = { message_reference = { message_id = self.id } }
     if type(text) == "table" and not text.title and not text.description then
@@ -653,7 +672,6 @@ function Message:Reply(text, embed, components)
         "POST", json.encode(payload))
 end
 
--- Send: sends a regular message with no ping/reply
 function Message:Send(text, embed, components)
     local payload = {}
     if type(text) == "table" and not text.title and not text.description then
@@ -670,20 +688,6 @@ function Message:Send(text, embed, components)
         "POST", json.encode(payload))
 end
 
-function Message:React(emoji)
-    make_request(self._token,
-        string.format("https://discord.com/api/v10/channels/%s/messages/%s/reactions/%s/@me",
-            self.channel_id, self.id, url_encode(emoji)),
-        "PUT", "{}")
-end
-
-function Message:Delete()
-    make_request(self._token,
-        string.format("https://discord.com/api/v10/channels/%s/messages/%s", self.channel_id, self.id),
-        "DELETE", "")
-end
-
--- Edit this message (only works on messages the bot sent)
 function Message:Edit(text, embed, components)
     local payload = {}
     if type(text) == "table" and not text.title and not text.description then
@@ -698,6 +702,19 @@ function Message:Edit(text, embed, components)
     make_request(self._token,
         string.format("https://discord.com/api/v10/channels/%s/messages/%s", self.channel_id, self.id),
         "PATCH", json.encode(payload))
+end
+
+function Message:React(emoji)
+    make_request(self._token,
+        string.format("https://discord.com/api/v10/channels/%s/messages/%s/reactions/%s/@me",
+            self.channel_id, self.id, url_encode(emoji)),
+        "PUT", "{}")
+end
+
+function Message:Delete()
+    make_request(self._token,
+        string.format("https://discord.com/api/v10/channels/%s/messages/%s", self.channel_id, self.id),
+        "DELETE", "")
 end
 
 function Message:Pin()
@@ -754,7 +771,31 @@ function Message:SendPrivateMessage(text, embed)
     end)
 end
 
--- 12. Shard Gateway
+-- 13. Shard Gateway
+local function register_slash_commands(token, app_id, pending_slash)
+    for _, pending in ipairs(pending_slash) do
+        local api_options = {}
+        for _, opt in ipairs(pending.cfg.options or {}) do
+            table.insert(api_options, {
+                name        = opt.name,
+                description = opt.description or opt.name,
+                type        = OPTION_TYPES[opt.type] or 3,
+                required    = opt.required or false
+            })
+        end
+        silicord.task.spawn(function()
+            local data = make_request_sync(token,
+                string.format("https://discord.com/api/v10/applications/%s/commands", app_id),
+                "POST", json.encode({
+                    name        = pending.name,
+                    description = pending.cfg.description or pending.name,
+                    options     = api_options
+                }))
+            if data then log_info("Registered slash command: /" .. pending.name) end
+        end)
+    end
+end
+
 local function start_shard(token, shard_id, total_shards, client)
     silicord.task.spawn(function()
         local tcp = socket.tcp()
@@ -792,7 +833,7 @@ local function start_shard(token, shard_id, total_shards, client)
             local opcode      = b1 % 16
             local payload_len = b2 % 128
             if opcode == 8 then
-                log_error("Discord sent a Close Frame. Check your token and intents.")
+                log_error("Discord closed the connection unexpectedly. Check your intents.")
                 os.exit(1)
             end
             if payload_len == 126 then
@@ -805,6 +846,7 @@ local function start_shard(token, shard_id, total_shards, client)
                 if not data then
                     log_error("Shard " .. shard_id .. ": malformed JSON.")
                 else
+                    -- Op 10: Hello — start heartbeat and identify
                     if data.op == 10 then
                         silicord.task.spawn(function()
                             local interval = data.d.heartbeat_interval / 1000
@@ -825,6 +867,7 @@ local function start_shard(token, shard_id, total_shards, client)
                         }))
                     end
 
+                    -- READY: bot is online, register slash commands now
                     if data.op == 0 and data.t == "READY" then
                         if total_shards > 1 then
                             log_info(string.format("Shard %d online! Logged in as %s.",
@@ -833,13 +876,19 @@ local function start_shard(token, shard_id, total_shards, client)
                             log_info("Bot online! Logged in as " .. data.d.user.username .. ". Press Ctrl+C to stop.")
                         end
                         client.cache.bot_user = data.d.user
+                        -- Register slash commands only after confirmed login
+                        if client._app_id and #client._pending_slash > 0 then
+                            register_slash_commands(token, client._app_id, client._pending_slash)
+                        end
                     end
 
+                    -- Op 9: Invalid session
                     if data.op == 9 then
-                        log_error("IDENTIFY FAILED: Invalid Token or missing Message Content Intent.")
+                        log_error("Invalid session. Check your token and Message Content Intent.")
                         os.exit(1)
                     end
 
+                    -- Cache guild data
                     if data.t == "GUILD_CREATE" and data.d then
                         client.cache.guilds[data.d.id] = data.d
                         if data.d.members then
@@ -851,6 +900,7 @@ local function start_shard(token, shard_id, total_shards, client)
                         end
                     end
 
+                    -- Prefix command dispatch
                     if data.t == "MESSAGE_CREATE" then
                         local msg = Message.new(data.d, token, client.cache)
                         if msg.author then
@@ -882,6 +932,7 @@ local function start_shard(token, shard_id, total_shards, client)
                         end
                     end
 
+                    -- Interaction dispatch (slash commands + components)
                     if data.t == "INTERACTION_CREATE" then
                         local interaction = Interaction.new(data.d, token)
                         local itype = data.d.type
@@ -912,22 +963,35 @@ local function start_shard(token, shard_id, total_shards, client)
     end)
 end
 
--- 13. Connect
+-- 14. Connect
 function silicord.Connect(config)
     local token  = config.token
     local prefix = config.prefix or "!"
     local app_id = config.app_id
 
+    -- Validate credentials before doing anything else
+    log_info("Validating credentials...")
+    local ok, reason = validate_credentials(token, app_id)
+    if not ok then
+        print(string.format(
+            "\27[1;31mERROR   %s silicord: Unable to run bot; please check if your %s is correct.\27[0m",
+            os.date("%H:%M:%S"), reason == "app_id" and "APP_ID" or "TOKEN"
+        ))
+        os.exit(1)
+    end
+    log_info("Credentials verified.")
+
     local client = {
-        OnMessage   = Signal.new(),
-        Token       = token,
-        _prefix     = prefix,
-        _conns      = {},
-        _commands   = {},
-        _slash      = {},
-        _components = {},
-        _middleware = {},
-        _app_id     = app_id,
+        OnMessage     = Signal.new(),
+        Token         = token,
+        _prefix       = prefix,
+        _conns        = {},
+        _commands     = {},
+        _slash        = {},
+        _pending_slash = {},  -- queued until READY
+        _components   = {},
+        _middleware   = {},
+        _app_id       = app_id,
         cache = {
             guilds   = {},
             users    = {},
@@ -941,30 +1005,15 @@ function silicord.Connect(config)
     end
 
     function client:CreateSlashCommand(name, cfg, callback)
-        self._slash[name] = { options = cfg.options or {}, callback = callback }
         if not self._app_id then
             log_error("app_id required for slash commands.")
             return
         end
-        local api_options = {}
-        for _, opt in ipairs(cfg.options or {}) do
-            table.insert(api_options, {
-                name        = opt.name,
-                description = opt.description or opt.name,
-                type        = OPTION_TYPES[opt.type] or 3,
-                required    = opt.required or false
-            })
-        end
-        silicord.task.spawn(function()
-            local data = make_request_sync(token,
-                string.format("https://discord.com/api/v10/applications/%s/commands", self._app_id),
-                "POST", json.encode({
-                    name        = name,
-                    description = cfg.description or name,
-                    options     = api_options
-                }))
-            if data then log_info("Registered slash command: /" .. name) end
-        end)
+        -- Store the callback immediately
+        self._slash[name] = { options = cfg.options or {}, callback = callback }
+        -- Queue registration until READY
+        table.insert(self._pending_slash, { name = name, cfg = cfg })
+        log_info("Queued slash command: /" .. name)
     end
 
     function client:CreateComponent(custom_id, callback)
@@ -999,6 +1048,7 @@ function silicord.Connect(config)
     return client
 end
 
+-- 15. Run
 function silicord.Run()
     log_info("Engine running...")
     local ok, err = pcall(copas.loop)
