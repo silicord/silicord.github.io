@@ -1,5 +1,5 @@
 package = "silicord"
-version = "0.4.2-1"
+version = "0.4.3-1"
 source = {
     url = "git+https://github.com/silicord/silicord.github.io.git",
     tag = "v0.4.2"  -- point to the new tag
@@ -7,8 +7,7 @@ source = {
 description = {
    summary = "A Discord API wrapper for Lua with Luau-inspired syntax.",
    detailed = [[
-      Silicord allows Roblox developers to create Discord bots using
-      familiar syntax while bridging the gap between Luau and standard Lua.
+      Silicord allows Roblox developers to create Discord bots using familiar syntax while bridging the gap between Luau and standard Lua. Check out the official homepage at https://silicord.github.io/
    ]],
    homepage = "https://silicord.github.io/",
    license = "MIT"
