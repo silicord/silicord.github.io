@@ -1,6 +1,8 @@
-# silicord v0.4.0
+# [silicord](https://silicord.github.io) v0.4.0
 
 A Discord bot framework for Lua with **Luau-inspired syntax** — built for Roblox developers who want to write Discord bots using familiar patterns like `task.wait()`, Signals, and method chaining.
+
+## For a more detailed and user-friendly coding experience, visit the official website at https://silicord.github.io/.
 
 ```bash
 luarocks install silicord
