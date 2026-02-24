@@ -209,15 +209,22 @@ local client = silicord.Connect({
 })
 
 -- Cooldown middleware
+-- Uses silicord.CollectionService to skip cooldown for commands tagged "NoCooldown"
 local cooldowns = {}
 client:AddMiddleware(function(ctx, cmd, args)
+    if silicord.CollectionService:HasTag(nil, cmd, "NoCooldown") then return end
     local key = ctx.author.id .. ":" .. cmd
-    if os.time() - (cooldowns[key] or 0) < 3 then
-        ctx:Reply("Wait 3 seconds between commands.")
+    local elapsed = os.time() - (cooldowns[key] or 0)
+    local clamped = silicord.math.clamp(elapsed, 0, 3)
+    if clamped < 3 then
+        ctx:Reply("Wait " .. (3 - clamped) .. " second(s) between commands.")
         return false
     end
     cooldowns[key] = os.time()
 end)
+
+-- !ping is exempt from cooldown
+silicord.CollectionService:AddTag(nil, "ping", "NoCooldown")
 
 -- !ping
 client:CreateCommand("ping", function(message, args)
@@ -231,21 +238,41 @@ client:CreateCommand("timeout", function(message, args)
     message:Reply("User timed out for 60 seconds.")
 end)
 
--- !vote (buttons)
+-- !vote (buttons — using silicord.Instance.new)
 client:CreateCommand("vote", function(message, args)
-    local row = silicord.ActionRow(
-        silicord.Button({ label = "Yes", style = "success", custom_id = "vote_yes" }),
-        silicord.Button({ label = "No",  style = "danger",  custom_id = "vote_no"  })
-    )
+    local yes = silicord.Instance.new("Button")
+    yes.Label    = "Yes ✅"
+    yes.Style    = "success"
+    yes.CustomId = "vote_yes"
+
+    local no = silicord.Instance.new("Button")
+    no.Label    = "No ❌"
+    no.Style    = "danger"
+    no.CustomId = "vote_no"
+
+    local row = silicord.ActionRow(yes:Build(), no:Build())
     message:Reply("Cast your vote!", nil, { row })
 end)
 
 client:CreateComponent("vote_yes", function(interaction)
-    interaction:Update("You voted Yes! ✅")
+    interaction:Update("You voted **Yes**! ✅")
 end)
 
 client:CreateComponent("vote_no", function(interaction)
-    interaction:Update("You voted No! ❌")
+    interaction:Update("You voted **No**! ❌")
+end)
+
+-- !profile (embed using silicord.Instance.new + Color3)
+client:CreateCommand("profile", function(message, args)
+    local embed = silicord.Instance.new("Embed")
+    embed.Title       = message.author.username .. "&apos;s Profile"
+    embed.Description = "Welcome to silicord v1.0.0!"
+    embed.Color       = silicord.Color3.fromRGB(88, 101, 242)
+    embed.Footer      = "silicord v1.0.0"
+    embed.Timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    embed:AddField("ID", message.author.id, true)
+    embed:AddField("Bot?", tostring(message.author.bot or false), true)
+    message:Reply(embed:Build())
 end)
 
 -- /ping (slash)
