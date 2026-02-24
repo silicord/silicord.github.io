@@ -15,7 +15,7 @@
   --text-dim: #8c8fa8;
   --text-muted: #4a4d65;
   --code-bg: #0b0c14;
-  --font-display: "Google Sans", sans-serif;
+  --font-display: "JetBrains Mono", monospace;
   --font-mono: 'JetBrains Mono', monospace;
   --radius: 10px;
 }
