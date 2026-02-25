@@ -35,6 +35,7 @@ silicord:CreateCommand("help", function(message, args)
             { name = "!ping", value = "Replies with Pong!", inline = true },
             { name = "/echo {text}", value = "Echoes back the provided text", inline = true },
             { name = "!help", value = "Shows this help message", inline = true },
+            { name = "!hello", value = "Replies with Hi!", inline = true },
             { name = "Coming soon...", value = "More commands will be added in the future!", inline = false }
         }
     })
@@ -43,3 +44,5 @@ end)
 
 --[[ silicord provides native support and treats both 
 prefix and slash commands equally ]]
+
+-- try making a command called !hello which replied "Hi"

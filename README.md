@@ -4,6 +4,8 @@ A Discord bot framework for Lua with **Luau-inspired syntax**. Built for Roblox 
 
 ## For a more detailed and user-friendly coding experience, visit the official website at https://silicord.github.io/.
 
+Install silicord via LuaRocks:
+
 ```bash
 luarocks install silicord
 ```
