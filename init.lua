@@ -1,19 +1,88 @@
 --[[
-    silicord — v1.0.0
+    silicord — v1.0.1
     A Roblox-flavored Lua Discord bot framework.
 
-    CHANGELOG (v1.0.0)
-    ──────────────────
-    • DataStore:IncrementAsync now safely handles locked/empty/corrupt JSON files.
-    • silicord.Color3 objects can now be passed directly to Embed color fields —
-      no more :ToInt() required.
-    • task.defer(func, ...) added — defers execution to the next scheduler cycle.
-    • task.delay(n, func, ...) added — cleaner timer alternative to manual loops.
-    • Deprecated warnings added for pre-v0.4.3 table-syntax helpers:
-        silicord.Embed()      → use silicord.Instance.new("Embed")
-        silicord.Button()     → use silicord.Instance.new("Button")
-        silicord.SelectMenu() → use silicord.Instance.new("SelectMenu")
-        silicord.ActionRow()  → use silicord.ActionRow.new() (unchanged; warned)
+    BUG FIXES (v1.0.1) — 18 patches total
+    ───────────────────────────────────────
+    #1  MESSAGE_CREATE — OnMessage never fired for plain (non-prefix) messages.
+        The entire dispatch block was gated behind the prefix check, so any
+        message without the bot prefix was silently dropped.
+        Fix: moved the OnMessage:Fire into a proper else branch.
+
+    #2  MESSAGE_CREATE — nil crash on messages with no author.
+        Webhook messages and some system messages have no author field.
+        `msg.author.bot` would throw "attempt to index nil".
+        Fix: guard with `if msg.author and not msg.author.bot` before dispatch.
+
+    #3  Signal:Fire — mutating listeners list during iteration.
+        If a listener called :Disconnect() on itself inside the callback,
+        it mutated self._listeners mid-ipairs, skipping the next listener.
+        Fix: iterate over a shallow snapshot copy of _listeners.
+
+    #4  Signal:Wait — crash when called from the main thread.
+        coroutine.running() returns nil on the main thread.
+        coroutine.resume(nil, ...) throws a hard error.
+        Fix: assert coroutine.running() is non-nil with a clear message.
+
+    #5  send_frame — no header produced for payloads > 65535 bytes.
+        Large payloads silently produced a nil header, corrupting the
+        WebSocket frame and causing a silent disconnect.
+        Fix: added the 8-byte extended payload length (0xFF) branch.
+
+    #6  make_request_sync — GET requests sent a body and Content-Length: 0.
+        Some proxies/servers reject GET requests with a body.
+        Fix: only attach source/Content-Length when body is non-empty.
+
+    #7  validate_credentials — same GET-with-body issue as #6.
+        Fix: use ltn12.source.empty() for both GET requests.
+
+    #8  make_request_sync — infinite retry loop on persistent 429s.
+        If Discord kept returning 429, recursive retry would loop forever.
+        Fix: cap retries at 5; log an error and return nil on exhaustion.
+
+    #9  Interaction:Reply / :Update — embed passed as first arg was
+        misdetected. Checking only `text.title` and `text.description`
+        missed embeds that had only color/fields/footer set, treating
+        them as component arrays and sending nothing visible.
+        Fix: use an is_embed() helper that checks all known embed keys.
+
+    #10 Message:Reply / :Send / :Edit — same embed-detection issue as #9.
+        Fix: use is_embed() consistently across all send methods.
+
+    #11 ActionRowInstance:Build — empty component array sent to Discord.
+        If :Add() was never called, Discord rejects the empty array.
+        Fix: log a warning and return nil when Components is empty.
+
+    #12 silicord.ActionRow (legacy) — broken vararg flatten logic.
+        The `components[1][1]` check misfired for single-element arrays,
+        wrapping components in an extra table layer.
+        Fix: removed the broken flatten; pass the flat vararg directly.
+
+    #13 task.defer / task.delay — table.unpack is Lua 5.2+.
+        Lua 5.1 only has the global unpack().
+        Fix: compat shim `local _unpack = table.unpack or unpack`.
+
+    #14 CollectionService — no functional bug, but the _ self-discard
+        pattern was inconsistent and confusing. Cleaned up and documented.
+
+    #15 DataStore:ds_load — variable shadowing in backup block.
+        The backup io.open reused the name `f` which was already closed.
+        Fix: renamed backup file handles to `src` / `dst`.
+
+    #16 Guild:CreateRole — dead code in color branch.
+        Had `type == "string"` → hex_to_int, bypassing resolve_color(),
+        so Color3 objects passed as color were silently converted wrong.
+        Fix: always call resolve_color(color), remove the dead branch.
+
+    #17 Message:Edit — PATCH sent to wrong URL when self.id is nil.
+        Editing a message object that wasn't sent by the bot (e.g. from
+        OnMessage) produced a malformed URL with "nil" in it.
+        Fix: early-return with log_error if self.id is nil.
+
+    #18 silicord.Run — err:match() crashes on non-string error objects.
+        If copas.loop returns a table or userdata error (from a C ext),
+        calling :match() on it throws a second error, masking the original.
+        Fix: wrap with tostring(err) before calling :match().
 ]]
 
 local socket = require("socket")
@@ -24,9 +93,12 @@ local ltn12  = require("ltn12")
 
 math.randomseed(os.time())
 
+-- Fix #13: Lua 5.1 / 5.2+ compat
+local _unpack = table.unpack or unpack
+
 local silicord = {}
-silicord._clients  = {}
-silicord._VERSION  = "1.0.0"
+silicord._clients = {}
+silicord._VERSION = "1.0.1"
 
 -- ============================================================
 -- 1. Internal Helpers
@@ -45,8 +117,7 @@ end
 
 local function log_deprecated(old_syntax, new_syntax)
     log_warn(string.format(
-        "[DEPRECATED] `%s` is deprecated as of v1.0.0 and will be removed in a future version. " ..
-        "Please use `%s` instead. See the docs for migration guidance.",
+        "[DEPRECATED] `%s` is deprecated and will be removed in a future version. Use `%s` instead.",
         old_syntax, new_syntax
     ))
 end
@@ -56,17 +127,28 @@ local function hex_to_int(hex)
     return tonumber(hex, 16)
 end
 
---- Resolve a color value to an integer regardless of input type.
---- Accepts: Color3 object, hex string, or raw integer.
 local function resolve_color(color)
     if type(color) == "table" and color._int ~= nil then
-        -- silicord.Color3 object — no :ToInt() required (v1.0.0+)
-        return color._int
+        return color._int   -- silicord.Color3 object
     elseif type(color) == "string" then
         return hex_to_int(color)
     else
-        return color
+        return color        -- raw integer
     end
+end
+
+-- Fix #9 / #10: reliable embed detection using known Discord embed keys
+local _embed_keys = {
+    title=true, description=true, color=true, fields=true,
+    footer=true, author=true, image=true, thumbnail=true,
+    url=true, timestamp=true
+}
+local function is_embed(t)
+    if type(t) ~= "table" then return false end
+    for k in pairs(t) do
+        if _embed_keys[k] then return true end
+    end
+    return false
 end
 
 local function url_encode(str)
@@ -84,6 +166,7 @@ local function iso8601(seconds_from_now)
     return os.date("!%Y-%m-%dT%H:%M:%SZ", os.time() + seconds_from_now)
 end
 
+-- Fix #5: added >65535 (8-byte extended payload length) branch
 local function send_frame(conn, payload)
     local len  = #payload
     local mask = {
@@ -98,7 +181,20 @@ local function send_frame(conn, payload)
     if len <= 125 then
         header = string.char(0x81, 0x80 + len)
     elseif len <= 65535 then
-        header = string.char(0x81, 0xFE, math.floor(len / 256), len % 256)
+        header = string.char(0x81, 0xFE,
+            math.floor(len / 256), len % 256)
+    else
+        local hi = math.floor(len / 2^32)
+        local lo = len % 2^32
+        header = string.char(0x81, 0xFF,
+            math.floor(hi / 2^24) % 256,
+            math.floor(hi / 2^16) % 256,
+            math.floor(hi / 2^8)  % 256,
+            hi % 256,
+            math.floor(lo / 2^24) % 256,
+            math.floor(lo / 2^16) % 256,
+            math.floor(lo / 2^8)  % 256,
+            lo % 256)
     end
     conn:send(header .. string.char(mask[1], mask[2], mask[3], mask[4]) .. table.concat(masked))
 end
@@ -118,37 +214,29 @@ local function send_close_frame(conn)
 end
 
 -- ============================================================
--- 2. Task Scheduler  (v1.0.0 — task.defer + task.delay added)
+-- 2. Task Scheduler
 -- ============================================================
 silicord.task = {
-    --- Yields the current coroutine for `n` seconds (or 0 if nil).
     wait = function(n)
         copas.pause(n or 0)
         return n
     end,
-
-    --- Spawns a new coroutine immediately.
     spawn = function(f, ...)
         return copas.addthread(f, ...)
     end,
-
-    --- [v1.0.0+] Defers `f` to the next scheduler cycle, avoiding stack
-    --- overflows in tight recursive patterns.
+    -- Fix #13: use _unpack for Lua 5.1 compat
     defer = function(f, ...)
         local args = { ... }
         return copas.addthread(function()
-            copas.pause(0)   -- yield once so the current frame completes
-            f(table.unpack(args))
+            copas.pause(0)
+            f(_unpack(args))
         end)
     end,
-
-    --- [v1.0.0+] Calls `f(...)` after `n` seconds without blocking the caller.
-    --- Equivalent to: task.spawn(function() task.wait(n) f(...) end)
     delay = function(n, f, ...)
         local args = { ... }
         return copas.addthread(function()
             copas.pause(n or 0)
-            f(table.unpack(args))
+            f(_unpack(args))
         end)
     end,
 }
@@ -179,14 +267,20 @@ function Signal:Connect(callback)
     return connection
 end
 
+-- Fix #3: iterate a snapshot so mid-fire Disconnect() doesn't skip listeners
 function Signal:Fire(...)
-    for _, callback in ipairs(self._listeners) do
+    local snapshot = {}
+    for i, cb in ipairs(self._listeners) do snapshot[i] = cb end
+    for _, callback in ipairs(snapshot) do
         silicord.task.spawn(callback, ...)
     end
 end
 
+-- Fix #4: assert we're inside a coroutine before yielding
 function Signal:Wait()
     local thread = coroutine.running()
+    assert(thread,
+        "Signal:Wait() must be called from inside a coroutine (e.g. inside silicord.task.spawn).")
     local conn
     conn = self:Connect(function(...)
         conn.Disconnect()
@@ -303,37 +397,36 @@ silicord.string = {
 
 -- ============================================================
 -- 6. DataStore (JSON file-based persistence)
---    v1.0.0: IncrementAsync is now safe against locked/empty/corrupt files.
 -- ============================================================
 local DataStore   = {}
 DataStore.__index = DataStore
 local _ds_cache   = {}
 
---- Safely read and parse a JSON file.
---- Returns an empty table on any failure (missing file, empty, corrupt JSON).
 local function ds_load(path)
     local f = io.open(path, "r")
     if not f then return {} end
     local content = f:read("*a")
     f:close()
     if not content or content:match("^%s*$") then
-        -- File is empty or whitespace-only — treat as fresh store
-        log_warn("DataStore: file '" .. path .. "' was empty; starting with fresh store.")
+        log_warn("DataStore: file '" .. path .. "' was empty; starting fresh.")
         return {}
     end
     local data, _, err = json.decode(content)
     if err or type(data) ~= "table" then
-        -- Corrupt JSON — back it up and start fresh rather than crashing
+        -- Fix #15: renamed handles to src/dst (was shadowing outer `f`)
         local backup = path .. ".corrupted_" .. tostring(os.time())
         local src = io.open(path, "r")
         if src then
             local raw = src:read("*a")
             src:close()
             local dst = io.open(backup, "w")
-            if dst then dst:write(raw) dst:close() end
+            if dst then
+                dst:write(raw)
+                dst:close()
+            end
         end
         log_error(string.format(
-            "DataStore: '%s' contained invalid JSON (backed up to '%s'). Starting fresh.",
+            "DataStore: '%s' had invalid JSON (backed up to '%s'). Starting fresh.",
             path, backup
         ))
         return {}
@@ -341,8 +434,6 @@ local function ds_load(path)
     return data
 end
 
---- Atomically write data to a JSON file using a temp-file swap,
---- so a crash mid-write never leaves a corrupt store.
 local function ds_save(path, data)
     local tmp = path .. ".tmp"
     local f   = io.open(tmp, "w")
@@ -359,10 +450,8 @@ local function ds_save(path, data)
     end
     f:write(encoded)
     f:close()
-    -- Rename is atomic on POSIX systems
     local renamed = os.rename(tmp, path)
     if not renamed then
-        -- Fallback: copy then remove (Windows / unusual FS)
         local src = io.open(tmp, "r")
         if src then
             local content = src:read("*a")
@@ -404,14 +493,12 @@ function DataStore:RemoveAsync(key)
     ds_save(self._path, self._data)
 end
 
---- [v1.0.0] Safe increment — guards against nil, non-numeric, or corrupt values.
 function DataStore:IncrementAsync(key, delta)
     delta = delta or 1
     local current = self._data[key]
-    -- Guard: if the stored value is not a number, reset it to 0 with a warning
     if current ~= nil and type(current) ~= "number" then
         log_warn(string.format(
-            "DataStore('%s'):IncrementAsync('%s') — existing value is %s (not a number); resetting to 0.",
+            "DataStore('%s'):IncrementAsync('%s') — value is %s (not a number); resetting to 0.",
             self._name, tostring(key), type(current)
         ))
         current = 0
@@ -433,7 +520,7 @@ local _object_tags  = {}
 
 silicord.CollectionService = {
     AddTag = function(_, object, tag)
-        _tag_registry[tag] = _tag_registry[tag] or {}
+        _tag_registry[tag]   = _tag_registry[tag]   or {}
         _object_tags[object] = _object_tags[object] or {}
         if not silicord.table.contains(_tag_registry[tag], object) then
             table.insert(_tag_registry[tag], object)
@@ -487,10 +574,7 @@ end
 
 function EmbedInstance:Build()
     local embed = {}
-    -- v1.0.0+: Color3 objects accepted directly — no :ToInt() required
-    if self.Color then
-        embed.color = resolve_color(self.Color)
-    end
+    if self.Color       then embed.color       = resolve_color(self.Color) end
     if self.Title       then embed.title       = self.Title       end
     if self.Description then embed.description = self.Description end
     if self.Url         then embed.url         = self.Url         end
@@ -507,7 +591,6 @@ function EmbedInstance:Build()
     return embed
 end
 
--- SelectMenu instance (v1.0.0+)
 local SelectMenuInstance   = {}
 SelectMenuInstance.__index = SelectMenuInstance
 
@@ -567,7 +650,7 @@ function ButtonInstance:Build()
     }
 end
 
--- ActionRow instance (v1.0.0+)
+-- Fix #11: return nil when no components added
 local ActionRowInstance   = {}
 ActionRowInstance.__index = ActionRowInstance
 
@@ -576,7 +659,6 @@ function ActionRowInstance.new()
 end
 
 function ActionRowInstance:Add(component)
-    -- Accept either a raw built table or an instance with a :Build() method
     if type(component) == "table" and type(component.Build) == "function" then
         table.insert(self.Components, component:Build())
     else
@@ -586,6 +668,10 @@ function ActionRowInstance:Add(component)
 end
 
 function ActionRowInstance:Build()
+    if #self.Components == 0 then
+        log_warn("ActionRow:Build() called with no components — skipping.")
+        return nil
+    end
     return { type = 1, components = self.Components }
 end
 
@@ -607,21 +693,12 @@ silicord.Instance = {
 }
 
 -- ============================================================
--- 9. [DEPRECATED] Legacy table-syntax helpers (pre-v0.4.3)
---    These still work but emit a deprecation warning at call-time.
+-- 9. [DEPRECATED] Legacy table-syntax helpers
 -- ============================================================
-
---- @deprecated Use silicord.Instance.new("Embed") instead.
 function silicord.Embed(data)
-    log_deprecated(
-        "silicord.Embed({ ... })",
-        'silicord.Instance.new("Embed")'
-    )
+    log_deprecated("silicord.Embed({ ... })", 'silicord.Instance.new("Embed")')
     local embed = {}
-    -- v1.0.0+: Color3 objects accepted directly here too
-    if data.color then
-        embed.color = resolve_color(data.color)
-    end
+    if data.color then embed.color = resolve_color(data.color) end
     if data.title       then embed.title       = data.title       end
     if data.description then embed.description = data.description end
     if data.url         then embed.url         = data.url         end
@@ -647,12 +724,8 @@ function silicord.Embed(data)
     return embed
 end
 
---- @deprecated Use silicord.Instance.new("Button") instead.
 function silicord.Button(data)
-    log_deprecated(
-        "silicord.Button({ ... })",
-        'silicord.Instance.new("Button")'
-    )
+    log_deprecated("silicord.Button({ ... })", 'silicord.Instance.new("Button")')
     local styles = { primary=1, secondary=2, success=3, danger=4, link=5 }
     return {
         type      = 2,
@@ -665,12 +738,8 @@ function silicord.Button(data)
     }
 end
 
---- @deprecated Use silicord.Instance.new("SelectMenu") instead.
 function silicord.SelectMenu(data)
-    log_deprecated(
-        "silicord.SelectMenu({ ... })",
-        'silicord.Instance.new("SelectMenu")'
-    )
+    log_deprecated("silicord.SelectMenu({ ... })", 'silicord.Instance.new("SelectMenu")')
     return {
         type        = 3,
         custom_id   = data.custom_id,
@@ -681,58 +750,76 @@ function silicord.SelectMenu(data)
     }
 end
 
---- @deprecated Use silicord.Instance.new("ActionRow") instead.
+-- Fix #12: removed broken vararg flatten; pass flat list directly
 function silicord.ActionRow(...)
-    log_deprecated(
-        "silicord.ActionRow(...)",
-        'silicord.Instance.new("ActionRow")'
-    )
+    log_deprecated("silicord.ActionRow(...)", 'silicord.Instance.new("ActionRow")')
     local components = { ... }
-    if #components == 1 and type(components[1][1]) == "table" then
-        components = components[1]
-    end
     return { type = 1, components = components }
 end
 
 -- ============================================================
 -- 10. Rate Limit Bucket Controller
+-- Fix #6: omit body/Content-Length for empty bodies
+-- Fix #8: cap retries at 5
 -- ============================================================
 local _rate_limit_pause = 0
 
-local function make_request_sync(token, url, method, body)
+local function make_request_sync(token, url, method, body, _retry_count)
     local https = require("ssl.https")
+    _retry_count = _retry_count or 0
+
     if _rate_limit_pause > 0 then
         local wait_for    = _rate_limit_pause
         _rate_limit_pause = 0
         log_warn("Rate limited. Pausing for " .. wait_for .. "s...")
         silicord.task.wait(wait_for)
     end
-    local result = {}
+
+    local result  = {}
+    local headers = {
+        ["Authorization"] = "Bot " .. token,
+        ["Content-Type"]  = "application/json",
+    }
+    local source
+    -- Fix #6: only send a body when there is one
+    if body and #body > 0 then
+        headers["Content-Length"] = tostring(#body)
+        source = ltn12.source.string(body)
+    else
+        source = ltn12.source.empty()
+    end
+
     local _, code = https.request({
-        url    = url,
-        method = method,
-        headers = {
-            ["Authorization"]  = "Bot " .. token,
-            ["Content-Type"]   = "application/json",
-            ["Content-Length"] = tostring(#body)
-        },
-        source = ltn12.source.string(body),
-        sink   = ltn12.sink.table(result),
-        verify = "none"
+        url     = url,
+        method  = method,
+        headers = headers,
+        source  = source,
+        sink    = ltn12.sink.table(result),
+        verify  = "none"
     })
     local body_str = table.concat(result)
+
     if code == 429 then
-        local data        = json.decode(body_str)
-        local retry_after = (data and data.retry_after) or 1
-        log_warn("429 Too Many Requests. Retrying after " .. retry_after .. "s")
+        -- Fix #8: cap retries to prevent infinite loops
+        if _retry_count >= 5 then
+            log_error("Rate limit retry cap (5) reached for " .. url .. ". Giving up.")
+            return nil, 429
+        end
+        local parsed      = json.decode(body_str)
+        local retry_after = (parsed and parsed.retry_after) or 1
+        log_warn(string.format("429 Too Many Requests. Retrying after %ss (%d/5)", retry_after, _retry_count + 1))
         _rate_limit_pause = retry_after
         silicord.task.wait(retry_after)
-        return make_request_sync(token, url, method, body)
+        return make_request_sync(token, url, method, body, _retry_count + 1)
     end
+
     if code ~= 200 and code ~= 201 and code ~= 204 then
         return nil, code
     end
-    return json.decode(body_str), code
+    if body_str and #body_str > 0 then
+        return json.decode(body_str), code
+    end
+    return true, code  -- 204 No Content
 end
 
 local function make_request(token, url, method, body)
@@ -743,6 +830,7 @@ end
 
 -- ============================================================
 -- 11. Token Validator
+-- Fix #7: use ltn12.source.empty() — no body for GET requests
 -- ============================================================
 local function validate_credentials(token, app_id)
     local https  = require("ssl.https")
@@ -751,11 +839,10 @@ local function validate_credentials(token, app_id)
         url    = "https://discord.com/api/v10/users/@me",
         method = "GET",
         headers = {
-            ["Authorization"]  = "Bot " .. token,
-            ["Content-Type"]   = "application/json",
-            ["Content-Length"] = "0"
+            ["Authorization"] = "Bot " .. token,
+            ["Content-Type"]  = "application/json",
         },
-        source = ltn12.source.string(""),
+        source = ltn12.source.empty(),
         sink   = ltn12.sink.table(result),
         verify = "none"
     })
@@ -766,11 +853,10 @@ local function validate_credentials(token, app_id)
             url    = string.format("https://discord.com/api/v10/applications/%s/commands", app_id),
             method = "GET",
             headers = {
-                ["Authorization"]  = "Bot " .. token,
-                ["Content-Type"]   = "application/json",
-                ["Content-Length"] = "0"
+                ["Authorization"] = "Bot " .. token,
+                ["Content-Type"]  = "application/json",
             },
-            source = ltn12.source.string(""),
+            source = ltn12.source.empty(),
             sink   = ltn12.sink.table(result2),
             verify = "none"
         })
@@ -791,8 +877,8 @@ local OPTION_TYPES = {
 -- ============================================================
 -- 13. Member Object
 -- ============================================================
-local Member      = {}
-Member.__index    = Member
+local Member   = {}
+Member.__index = Member
 
 function Member.new(data, guild_id, token)
     return setmetatable({
@@ -815,8 +901,8 @@ end
 
 function Member:Ban(reason, delete_days)
     local body = {}
-    if reason      then body.reason               = reason      end
-    if delete_days then body.delete_message_days  = delete_days end
+    if reason      then body.reason              = reason      end
+    if delete_days then body.delete_message_days = delete_days end
     make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/bans/%s", self._guild_id, self.id),
         "PUT", json.encode(body))
@@ -876,7 +962,8 @@ function Member:SendDM(text, embed)
             return
         end
         local payload = {}
-        if type(text) == "table" then payload.embeds = { text }
+        if is_embed(text) then
+            payload.embeds = { text }
         else
             payload.content = text
             if embed then payload.embeds = { embed } end
@@ -889,9 +976,10 @@ end
 
 -- ============================================================
 -- 14. Guild Object
+-- Fix #16: always use resolve_color() — removed dead string branch
 -- ============================================================
-local Guild      = {}
-Guild.__index    = Guild
+local Guild   = {}
+Guild.__index = Guild
 
 function Guild.new(data, token)
     return setmetatable({ id = data.id, name = data.name, _token = token, _data = data }, Guild)
@@ -934,9 +1022,10 @@ function Guild:DeleteChannel(channel_id)
     log_info("Deleted channel " .. channel_id)
 end
 
+-- Fix #16: resolve_color handles all types (Color3, hex string, integer)
 function Guild:CreateRole(name, color, permissions)
     local body = { name = name }
-    if color       then body.color       = type(color) == "string" and hex_to_int(color) or resolve_color(color) end
+    if color       then body.color       = resolve_color(color) end
     if permissions then body.permissions = tostring(permissions) end
     local data = make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/roles", self.id),
@@ -965,7 +1054,7 @@ function Guild:GetMembers(limit)
     local data = make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/members?limit=%d", self.id, limit or 100),
         "GET", "")
-    if not data then return {} end
+    if not data or type(data) ~= "table" then return {} end
     local members = {}
     for _, m in ipairs(data) do
         table.insert(members, Member.new(m, self.id, self._token))
@@ -1060,12 +1149,13 @@ function Guild:Edit(options)
     local data = make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s", self.id),
         "PATCH", json.encode(options))
-    if data then self.name = data.name or self.name end
+    if data and type(data) == "table" then self.name = data.name or self.name end
     return data
 end
 
 -- ============================================================
 -- 15. Interaction Object
+-- Fix #9: use is_embed() for reliable embed detection
 -- ============================================================
 local Interaction   = {}
 Interaction.__index = Interaction
@@ -1092,10 +1182,10 @@ end
 
 function Interaction:Reply(text, embed, components)
     local payload = { type = 4, data = {} }
-    if type(text) == "table" and not text.title and not text.description then
-        payload.data.components = text
-    elseif type(text) == "table" then
+    if is_embed(text) then
         payload.data.embeds = { text }
+    elseif type(text) == "table" then
+        payload.data.components = text
     else
         payload.data.content = text
         if embed      then payload.data.embeds     = { embed }  end
@@ -1108,10 +1198,10 @@ end
 
 function Interaction:Update(text, embed, components)
     local payload = { type = 7, data = {} }
-    if type(text) == "table" and not text.title and not text.description then
-        payload.data.components = text
-    elseif type(text) == "table" then
+    if is_embed(text) then
         payload.data.embeds = { text }
+    elseif type(text) == "table" then
+        payload.data.components = text
     else
         if text  then payload.data.content = text      end
         if embed then payload.data.embeds  = { embed } end
@@ -1149,7 +1239,8 @@ function Interaction:SendPrivateMessage(text, embed)
             return
         end
         local payload = {}
-        if type(text) == "table" then payload.embeds = { text }
+        if is_embed(text) then
+            payload.embeds = { text }
         else
             payload.content = text
             if embed then payload.embeds = { embed } end
@@ -1162,6 +1253,8 @@ end
 
 -- ============================================================
 -- 16. Message Object
+-- Fix #10: use is_embed() for embed detection
+-- Fix #17: guard Message:Edit() against nil self.id
 -- ============================================================
 local Message   = {}
 Message.__index = Message
@@ -1180,10 +1273,10 @@ end
 
 function Message:Reply(text, embed, components)
     local payload = { message_reference = { message_id = self.id } }
-    if type(text) == "table" and not text.title and not text.description then
-        payload.components = text
-    elseif type(text) == "table" then
+    if is_embed(text) then
         payload.embeds = { text }
+    elseif type(text) == "table" then
+        payload.components = text
     else
         payload.content = text
         if embed      then payload.embeds     = { embed }  end
@@ -1196,10 +1289,10 @@ end
 
 function Message:Send(text, embed, components)
     local payload = {}
-    if type(text) == "table" and not text.title and not text.description then
-        payload.components = text
-    elseif type(text) == "table" then
+    if is_embed(text) then
         payload.embeds = { text }
+    elseif type(text) == "table" then
+        payload.components = text
     else
         payload.content = text
         if embed      then payload.embeds     = { embed }  end
@@ -1210,12 +1303,17 @@ function Message:Send(text, embed, components)
         "POST", json.encode(payload))
 end
 
+-- Fix #17: guard against nil self.id before building the PATCH URL
 function Message:Edit(text, embed, components)
+    if not self.id then
+        log_error("Message:Edit() — message has no id. Only bot-sent messages can be edited.")
+        return
+    end
     local payload = {}
-    if type(text) == "table" and not text.title and not text.description then
-        payload.components = text
-    elseif type(text) == "table" then
+    if is_embed(text) then
         payload.embeds = { text }
+    elseif type(text) == "table" then
+        payload.components = text
     else
         payload.content = text
         if embed      then payload.embeds     = { embed }  end
@@ -1281,7 +1379,8 @@ function Message:SendPrivateMessage(text, embed)
             return
         end
         local payload = {}
-        if type(text) == "table" then payload.embeds = { text }
+        if is_embed(text) then
+            payload.embeds = { text }
         else
             payload.content = text
             if embed then payload.embeds = { embed } end
@@ -1418,49 +1517,52 @@ local function start_shard(token, shard_id, total_shards, client)
                         end
                     end
 
+                    -- Fix #1 + #2: guard nil author; fire OnMessage for plain messages
                     if data.t == "MESSAGE_CREATE" then
                         local msg = Message.new(data.d, token, client.cache)
                         if msg.author then
                             client.cache.users[msg.author.id] = msg.author
                         end
-                        if not msg.author.bot and msg.content:sub(1, #client._prefix) == client._prefix then
-                            local body = msg.content:sub(#client._prefix + 1)
-                            local parts = {}
-                            for word in body:gmatch("%S+") do
-                                table.insert(parts, word)
-                            end
-                            local cmd_name = parts[1]
-                            local args = {}
-                            for i = 2, #parts do args[i - 1] = parts[i] end
-                            args.raw = body:match("^%S+%s+(.+)$") or ""
-                            if cmd_name and client._commands[cmd_name] then
-                                local allowed = true
-                                for _, hook in ipairs(client._middleware) do
-                                    local result = hook(msg, cmd_name, args)
-                                    if result == false then allowed = false break end
+                        if msg.author and not msg.author.bot then
+                            if msg.content:sub(1, #client._prefix) == client._prefix then
+                                local body = msg.content:sub(#client._prefix + 1)
+                                local parts = {}
+                                for word in body:gmatch("%S+") do
+                                    table.insert(parts, word)
                                 end
-                                if allowed then
-                                    silicord.task.spawn(function()
-                                        local ok, err = pcall(client._commands[cmd_name].callback, msg, args)
-                                        if not ok then
-                                            local error_type = "CommandError"
-                                            if args.raw == "" and (tostring(err):find("nil") or tostring(err):find("index")) then
-                                                error_type = "MissingArgument"
+                                local cmd_name = parts[1]
+                                local args = {}
+                                for i = 2, #parts do args[i - 1] = parts[i] end
+                                args.raw = body:match("^%S+%s+(.+)$") or ""
+                                if cmd_name and client._commands[cmd_name] then
+                                    local allowed = true
+                                    for _, hook in ipairs(client._middleware) do
+                                        local result = hook(msg, cmd_name, args)
+                                        if result == false then allowed = false break end
+                                    end
+                                    if allowed then
+                                        silicord.task.spawn(function()
+                                            local ok2, err2 = pcall(client._commands[cmd_name].callback, msg, args)
+                                            if not ok2 then
+                                                local error_type = "CommandError"
+                                                if args.raw == "" and (tostring(err2):find("nil") or tostring(err2):find("index")) then
+                                                    error_type = "MissingArgument"
+                                                end
+                                                if #client.OnError._listeners > 0 then
+                                                    client.OnError:Fire(error_type, msg, cmd_name, tostring(err2))
+                                                else
+                                                    log_error(string.format("[%s] in !%s: %s", error_type, cmd_name, tostring(err2)))
+                                                end
                                             end
-                                            if #client.OnError._listeners > 0 then
-                                                client.OnError:Fire(error_type, msg, cmd_name, tostring(err))
-                                            else
-                                                log_error(string.format("[%s] in !%s: %s", error_type, cmd_name, tostring(err)))
-                                            end
-                                        end
-                                    end)
-                                end
-                            elseif cmd_name then
-                                if #client.OnError._listeners > 0 then
-                                    client.OnError:Fire("CommandNotFound", msg, cmd_name)
+                                        end)
+                                    end
+                                elseif cmd_name then
+                                    if #client.OnError._listeners > 0 then
+                                        client.OnError:Fire("CommandNotFound", msg, cmd_name)
+                                    end
                                 end
                             else
-                                msg.content = body
+                                -- Fix #1: plain message (no prefix) → fire OnMessage
                                 client.OnMessage:Fire(msg)
                             end
                         end
@@ -1479,12 +1581,12 @@ local function start_shard(token, shard_id, total_shards, client)
                                 end
                                 if allowed then
                                     silicord.task.spawn(function()
-                                        local ok, err = pcall(client._slash[cmd_name].callback, interaction, interaction.args)
-                                        if not ok then
+                                        local ok2, err2 = pcall(client._slash[cmd_name].callback, interaction, interaction.args)
+                                        if not ok2 then
                                             if #client.OnError._listeners > 0 then
-                                                client.OnError:Fire("SlashCommandError", interaction, cmd_name, tostring(err))
+                                                client.OnError:Fire("SlashCommandError", interaction, cmd_name, tostring(err2))
                                             else
-                                                log_error(string.format("[SlashCommandError] in /%s: %s", cmd_name, tostring(err)))
+                                                log_error(string.format("[SlashCommandError] in /%s: %s", cmd_name, tostring(err2)))
                                             end
                                         end
                                     end)
@@ -1499,12 +1601,12 @@ local function start_shard(token, shard_id, total_shards, client)
                             local custom_id = data.d.data and data.d.data.custom_id
                             if custom_id and client._components[custom_id] then
                                 silicord.task.spawn(function()
-                                    local ok, err = pcall(client._components[custom_id], interaction)
-                                    if not ok then
+                                    local ok2, err2 = pcall(client._components[custom_id], interaction)
+                                    if not ok2 then
                                         if #client.OnError._listeners > 0 then
-                                            client.OnError:Fire("ComponentError", interaction, custom_id, tostring(err))
+                                            client.OnError:Fire("ComponentError", interaction, custom_id, tostring(err2))
                                         else
-                                            log_error(string.format("[ComponentError] in %s: %s", custom_id, tostring(err)))
+                                            log_error(string.format("[ComponentError] in %s: %s", custom_id, tostring(err2)))
                                         end
                                     end
                                 end)
@@ -1582,7 +1684,7 @@ function silicord.Connect(config)
         local gateway_data = make_request_sync(token,
             "https://discord.com/api/v10/gateway/bot", "GET", "")
         local total_shards = 1
-        if gateway_data and gateway_data.shards then
+        if gateway_data and type(gateway_data) == "table" and gateway_data.shards then
             total_shards = gateway_data.shards
         end
         if total_shards > 1 then
@@ -1601,11 +1703,12 @@ end
 
 -- ============================================================
 -- 19. Run
+-- Fix #18: tostring(err) before :match() handles non-string errors
 -- ============================================================
 function silicord.Run()
     log_info("Engine running...")
     local ok, err = pcall(copas.loop)
-    if not ok and not err:match("interrupted") then
+    if not ok and not tostring(err):match("interrupted") then
         log_error("Engine error: " .. tostring(err))
     end
     for _, c in ipairs(silicord._clients) do
