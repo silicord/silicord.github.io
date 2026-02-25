@@ -1,8 +1,8 @@
 --[[
-    silicord — v1.0.1
+    silicord — v1.1.0
     A Roblox-flavored Lua Discord bot framework.
 
-    BUG FIXES (v1.0.1) — 18 patches total
+    BUG FIXES (v1.1.0) — 18 patches total
     ───────────────────────────────────────
     #1  MESSAGE_CREATE — OnMessage never fired for plain (non-prefix) messages.
         The entire dispatch block was gated behind the prefix check, so any
