@@ -1,4 +1,4 @@
-# [silicord](https://silicord.github.io) v1.0.0
+# [silicord](https://silicord.github.io) v1.1.0
 
 A Discord bot framework for Lua with **Luau-inspired syntax**. Built for Roblox developers who want to write Discord bots using familiar patterns like `task.wait()`, Signals, and method chaining.
 
@@ -939,6 +939,7 @@ MIT: see [LICENSE](LICENSE)
 
 ## Version History
 
+- **v1.1.0** - Multi-bug patch, fixed `WebSocket` connection issues, improved error handling, and various optimizations.
 - **v1.0.0** — DataStore safety (atomic writes, corrupt JSON backup, safe `IncrementAsync`); `Color3` objects accepted directly in all color fields (no `:ToInt()` required); `task.defer()` and `task.delay()` added; `Instance.new("SelectMenu")` and `Instance.new("ActionRow")` OOP classes added; `silicord.Embed()`, `silicord.Button()`, `silicord.SelectMenu()`, and `silicord.ActionRow()` deprecated with runtime warnings
 - **v0.4.3** — Added nice favicon
 - **v0.4.2** — Fixed typo in `README.md`
