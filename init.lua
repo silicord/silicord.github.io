@@ -1230,6 +1230,13 @@ function Message:Pin()
         "PUT", "{}")
 end
 
+function Message:Unreact(emoji)
+    make_request(self._token,
+        string.format("https://discord.com/api/v10/channels/%s/messages/%s/reactions/%s/@me",
+            self.channel_id, self.id, url_encode(emoji)),
+        "DELETE", "")
+end
+
 function Message:Unpin()
     make_request(self._token,
         string.format("https://discord.com/api/v10/channels/%s/pins/%s", self.channel_id, self.id),
