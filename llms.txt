@@ -1,3 +1,5 @@
+this is used for ai services like gemini and chatgpt to understand silicord to assist other users
+
 # [silicord](https://silicord.github.io) v0.4.3
 
 A Discord bot framework for Lua with **Luau-inspired syntax** — built for Roblox developers who want to write Discord bots using familiar patterns like `task.wait()`, Signals, and method chaining.
