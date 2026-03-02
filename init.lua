@@ -1,8 +1,3 @@
---[[
-    silicord — v1.1.0
-    A Roblox-flavored Lua Discord bot framework.
-]]
-
 local socket = require("socket")
 local ssl    = require("ssl")
 local copas  = require("copas")
@@ -11,14 +6,12 @@ local ltn12  = require("ltn12")
 
 math.randomseed(os.time())
 
-local _unpack = table.unpack or unpack -- nts: Lua 5.1 compatibility
+local _unpack = table.unpack or unpack  
 
 local silicord = {}
-silicord._clients = {}
-silicord._VERSION = "1.0.1"
-
-
--- Internal Helpers
+silicord._clients  = {}
+silicord._VERSION  = "1.2.0"
+silicord._services = {}  
 
 local function log_info(message)
     print(string.format("\27[1;35mINFO    %s silicord: %s\27[0m", os.date("%H:%M:%S"), message))
@@ -46,11 +39,11 @@ end
 
 local function resolve_color(color)
     if type(color) == "table" and color._int ~= nil then
-        return color._int   -- silicord.Color3 object
+        return color._int
     elseif type(color) == "string" then
         return hex_to_int(color)
     else
-        return color        -- raw integer
+        return color
     end
 end
 
@@ -96,20 +89,15 @@ local function send_frame(conn, payload)
     if len <= 125 then
         header = string.char(0x81, 0x80 + len)
     elseif len <= 65535 then
-        header = string.char(0x81, 0xFE,
-            math.floor(len / 256), len % 256)
+        header = string.char(0x81, 0xFE, math.floor(len / 256), len % 256)
     else
         local hi = math.floor(len / 2^32)
         local lo = len % 2^32
         header = string.char(0x81, 0xFF,
-            math.floor(hi / 2^24) % 256,
-            math.floor(hi / 2^16) % 256,
-            math.floor(hi / 2^8)  % 256,
-            hi % 256,
-            math.floor(lo / 2^24) % 256,
-            math.floor(lo / 2^16) % 256,
-            math.floor(lo / 2^8)  % 256,
-            lo % 256)
+            math.floor(hi / 2^24) % 256, math.floor(hi / 2^16) % 256,
+            math.floor(hi / 2^8)  % 256, hi % 256,
+            math.floor(lo / 2^24) % 256, math.floor(lo / 2^16) % 256,
+            math.floor(lo / 2^8)  % 256, lo % 256)
     end
     conn:send(header .. string.char(mask[1], mask[2], mask[3], mask[4]) .. table.concat(masked))
 end
@@ -117,19 +105,13 @@ end
 local function send_close_frame(conn)
     local mask = { math.random(0,255), math.random(0,255), math.random(0,255), math.random(0,255) }
     local code = { 0x03, 0xE8 }
-    local masked_code = {
-        string.char(code[1] ~ mask[1]),
-        string.char(code[2] ~ mask[2])
-    }
     conn:send(
         string.char(0x88, 0x82) ..
         string.char(mask[1], mask[2], mask[3], mask[4]) ..
-        table.concat(masked_code)
+        string.char(code[1] ~ mask[1]) ..
+        string.char(code[2] ~ mask[2])
     )
 end
-
-
--- Task Scheduler
 
 silicord.task = {
     wait = function(n)
@@ -155,9 +137,6 @@ silicord.task = {
     end,
 }
 
-
--- Signal System
-
 local Signal = {}
 Signal.__index = Signal
 
@@ -168,17 +147,13 @@ end
 function Signal:Connect(callback)
     table.insert(self._listeners, callback)
     local listeners = self._listeners
-    local connection = {
+    return {
         Disconnect = function()
             for i, cb in ipairs(listeners) do
-                if cb == callback then
-                    table.remove(listeners, i)
-                    break
-                end
+                if cb == callback then table.remove(listeners, i) break end
             end
         end
     }
-    return connection
 end
 
 function Signal:Fire(...)
@@ -191,8 +166,7 @@ end
 
 function Signal:Wait()
     local thread = coroutine.running()
-    assert(thread,
-        "Signal:Wait() must be called from inside a coroutine (e.g. inside silicord.task.spawn).")
+    assert(thread, "Signal:Wait() must be called from inside a coroutine (e.g. silicord.task.spawn).")
     local conn
     conn = self:Connect(function(...)
         conn.Disconnect()
@@ -203,8 +177,85 @@ end
 
 silicord.Signal = { new = Signal.new }
 
+silicord.Enum = {
+        Presence = {
+        Online       = "online",
+        Idle         = "idle",
+        DoNotDisturb = "dnd",
+        Invisible    = "invisible",
+    },
 
--- Color3 Class
+        ChannelType = {
+        Text         = 0,
+        DM           = 1,
+        Voice        = 2,
+        GDM          = 3,
+        Category     = 4,
+        Announcement = 5,
+        Thread       = 11,
+        Stage        = 13,
+        Forum        = 15,
+        Media        = 16,
+    },
+
+        Permissions = {
+        CreateInstantInvite = 0x1,
+        KickMembers         = 0x2,
+        BanMembers          = 0x4,
+        Administrator       = 0x8,
+        ManageChannels      = 0x10,
+        ManageGuild         = 0x20,
+        AddReactions        = 0x40,
+        ViewAuditLog        = 0x80,
+        PrioritySpeaker     = 0x100,
+        Stream              = 0x200,
+        ReadMessages        = 0x400,   
+        ViewChannel         = 0x400,
+        SendMessages        = 0x800,
+        SendTTSMessages     = 0x1000,
+        ManageMessages      = 0x2000,
+        EmbedLinks          = 0x4000,
+        AttachFiles         = 0x8000,
+        ReadMessageHistory  = 0x10000,
+        MentionEveryone     = 0x20000,
+        UseExternalEmojis   = 0x40000,
+        ViewGuildInsights   = 0x80000,
+        Connect             = 0x100000,
+        Speak               = 0x200000,
+        MuteMembers         = 0x400000,
+        DeafenMembers       = 0x800000,
+        MoveMembers         = 0x1000000,
+        UseVAD              = 0x2000000,
+        ChangeNickname      = 0x4000000,
+        ManageNicknames     = 0x8000000,
+        ManageRoles         = 0x10000000,
+        ManageWebhooks      = 0x20000000,
+        ManageExpressions   = 0x40000000,
+    },
+
+        PunishmentLength = {
+        ["1Minute"]   = 60,
+        ["5Minutes"]  = 300,
+        ["10Minutes"] = 600,
+        ["30Minutes"] = 1800,
+        ["1Hour"]     = 3600,
+        ["6Hours"]    = 21600,
+        ["12Hours"]   = 43200,
+        ["1Day"]      = 86400,
+        ["3Days"]     = 259200,
+        ["1Week"]     = 604800,
+        Permanent     = nil,
+    },
+
+        UserStatusInGuild = {
+        None     = "none",
+        TimedOut = "timed_out",
+        Kicked   = "kicked",
+        Banned   = "banned",
+    },
+}
+
+local Enum = silicord.Enum
 
 local Color3 = {}
 Color3.__index = Color3
@@ -224,9 +275,7 @@ function Color3.fromHex(hex)
     return Color3.fromRGB(r, g, b)
 end
 
-function Color3:ToInt()
-    return self._int
-end
+function Color3:ToInt() return self._int end
 
 function Color3:__tostring()
     return string.format("Color3(%d, %d, %d)", self.r, self.g, self.b)
@@ -234,35 +283,20 @@ end
 
 silicord.Color3 = Color3
 
-
--- Standard Library Parity
-
 silicord.math = {
-    clamp = function(n, min, max)
-        return math.max(min, math.min(max, n))
-    end,
-    round = function(n)
-        return math.floor(n + 0.5)
-    end,
-    lerp = function(a, b, t)
-        return a + (b - a) * t
-    end,
-    sign = function(n)
-        if n > 0 then return 1 elseif n < 0 then return -1 else return 0 end
-    end
+    clamp = function(n, min, max) return math.max(min, math.min(max, n)) end,
+    round = function(n) return math.floor(n + 0.5) end,
+    lerp  = function(a, b, t) return a + (b - a) * t end,
+    sign  = function(n) if n > 0 then return 1 elseif n < 0 then return -1 else return 0 end end,
 }
 
 silicord.table = {
     find = function(t, value)
-        for i, v in ipairs(t) do
-            if v == value then return i end
-        end
+        for i, v in ipairs(t) do if v == value then return i end end
         return nil
     end,
     contains = function(t, value)
-        for _, v in ipairs(t) do
-            if v == value then return true end
-        end
+        for _, v in ipairs(t) do if v == value then return true end end
         return false
     end,
     keys = function(t)
@@ -279,395 +313,25 @@ silicord.table = {
         local copy = {}
         for k, v in pairs(t) do copy[k] = v end
         return copy
-    end
+    end,
 }
 
 silicord.string = {
     split = function(str, sep)
         sep = sep or "%s"
         local parts = {}
-        for part in str:gmatch("([^" .. sep .. "]+)") do
-            table.insert(parts, part)
-        end
+        for part in str:gmatch("([^" .. sep .. "]+)") do table.insert(parts, part) end
         return parts
     end,
-    trim = function(str)
-        return str:match("^%s*(.-)%s*$")
-    end,
-    startsWith = function(str, prefix)
-        return str:sub(1, #prefix) == prefix
-    end,
-    endsWith = function(str, suffix)
-        return str:sub(-#suffix) == suffix
-    end,
+    trim       = function(str) return str:match("^%s*(.-)%s*$") end,
+    startsWith = function(str, prefix) return str:sub(1, #prefix) == prefix end,
+    endsWith   = function(str, suffix) return str:sub(-#suffix) == suffix end,
     pad = function(str, length, char)
         char = char or " "
         while #str < length do str = str .. char end
         return str
-    end
-}
-
-
--- DataStore (JSON file)
-
-local DataStore   = {}
-DataStore.__index = DataStore
-local _ds_cache   = {}
-
-local function ds_load(path)
-    local f = io.open(path, "r")
-    if not f then return {} end
-    local content = f:read("*a")
-    f:close()
-    if not content or content:match("^%s*$") then
-        log_warn("DataStore: file '" .. path .. "' was empty; starting fresh.")
-        return {}
-    end
-    local data, _, err = json.decode(content)
-    if err or type(data) ~= "table" then
-        local backup = path .. ".corrupted_" .. tostring(os.time())
-        local src = io.open(path, "r")
-        if src then
-            local raw = src:read("*a")
-            src:close()
-            local dst = io.open(backup, "w")
-            if dst then
-                dst:write(raw)
-                dst:close()
-            end
-        end
-        log_error(string.format(
-            "DataStore: '%s' had invalid JSON (backed up to '%s'). Starting fresh.",
-            path, backup
-        ))
-        return {}
-    end
-    return data
-end
-
-local function ds_save(path, data)
-    local tmp = path .. ".tmp"
-    local f   = io.open(tmp, "w")
-    if not f then
-        log_error("DataStore: could not write to " .. tmp)
-        return false
-    end
-    local ok, encoded = pcall(json.encode, data)
-    if not ok then
-        log_error("DataStore: json.encode failed for '" .. path .. "': " .. tostring(encoded))
-        f:close()
-        os.remove(tmp)
-        return false
-    end
-    f:write(encoded)
-    f:close()
-    local renamed = os.rename(tmp, path)
-    if not renamed then
-        local src = io.open(tmp, "r")
-        if src then
-            local content = src:read("*a")
-            src:close()
-            local dst = io.open(path, "w")
-            if dst then
-                dst:write(content)
-                dst:close()
-            else
-                log_error("DataStore: could not write final file '" .. path .. "'")
-                return false
-            end
-        end
-        os.remove(tmp)
-    end
-    return true
-end
-
-function silicord.DataStore(name)
-    if _ds_cache[name] then return _ds_cache[name] end
-    local path  = name .. ".datastore.json"
-    local store = setmetatable({ _name = name, _path = path, _data = ds_load(path) }, DataStore)
-    _ds_cache[name] = store
-    log_info("DataStore loaded: " .. name)
-    return store
-end
-
-function DataStore:SetAsync(key, value)
-    self._data[key] = value
-    ds_save(self._path, self._data)
-end
-
-function DataStore:GetAsync(key)
-    return self._data[key]
-end
-
-function DataStore:RemoveAsync(key)
-    self._data[key] = nil
-    ds_save(self._path, self._data)
-end
-
-function DataStore:IncrementAsync(key, delta)
-    delta = delta or 1
-    local current = self._data[key]
-    if current ~= nil and type(current) ~= "number" then
-        log_warn(string.format(
-            "DataStore('%s'):IncrementAsync('%s') — value is %s (not a number); resetting to 0.",
-            self._name, tostring(key), type(current)
-        ))
-        current = 0
-    end
-    self._data[key] = (current or 0) + delta
-    ds_save(self._path, self._data)
-    return self._data[key]
-end
-
-function DataStore:GetKeys()
-    return silicord.table.keys(self._data)
-end
-
-
--- CollectionService (Tag)
-
-local _tag_registry = {}
-local _object_tags  = {}
-
-silicord.CollectionService = {
-    AddTag = function(_, object, tag)
-        _tag_registry[tag]   = _tag_registry[tag]   or {}
-        _object_tags[object] = _object_tags[object] or {}
-        if not silicord.table.contains(_tag_registry[tag], object) then
-            table.insert(_tag_registry[tag], object)
-        end
-        if not silicord.table.contains(_object_tags[object], tag) then
-            table.insert(_object_tags[object], tag)
-        end
     end,
-    RemoveTag = function(_, object, tag)
-        if _tag_registry[tag] then
-            local i = silicord.table.find(_tag_registry[tag], object)
-            if i then table.remove(_tag_registry[tag], i) end
-        end
-        if _object_tags[object] then
-            local i = silicord.table.find(_object_tags[object], tag)
-            if i then table.remove(_object_tags[object], i) end
-        end
-    end,
-    GetTagged = function(_, tag)
-        return _tag_registry[tag] or {}
-    end,
-    GetTags = function(_, object)
-        return _object_tags[object] or {}
-    end,
-    HasTag = function(_, object, tag)
-        return silicord.table.contains(_object_tags[object] or {}, tag)
-    end
 }
-
-
--- Instance.new() — OOP constructors like Roblox
-
-local EmbedInstance   = {}
-EmbedInstance.__index = EmbedInstance
-
-function EmbedInstance.new()
-    return setmetatable({
-        Title = nil, Description = nil, Color = nil,
-        Url   = nil, Timestamp   = nil,
-        Author = nil, AuthorIcon = nil, AuthorUrl = nil,
-        Footer = nil, FooterIcon = nil,
-        Image  = nil, Thumbnail  = nil,
-        Fields = {}
-    }, EmbedInstance)
-end
-
-function EmbedInstance:AddField(name, value, inline)
-    table.insert(self.Fields, { name = name, value = value, inline = inline or false })
-    return self
-end
-
-function EmbedInstance:Build()
-    local embed = {}
-    if self.Color       then embed.color       = resolve_color(self.Color) end
-    if self.Title       then embed.title       = self.Title       end
-    if self.Description then embed.description = self.Description end
-    if self.Url         then embed.url         = self.Url         end
-    if self.Timestamp   then embed.timestamp   = self.Timestamp   end
-    if self.Author then
-        embed.author = { name = self.Author, icon_url = self.AuthorIcon, url = self.AuthorUrl }
-    end
-    if self.Footer then
-        embed.footer = { text = self.Footer, icon_url = self.FooterIcon }
-    end
-    if self.Image     then embed.image     = { url = self.Image }     end
-    if self.Thumbnail then embed.thumbnail = { url = self.Thumbnail } end
-    if #self.Fields > 0 then embed.fields = self.Fields end
-    return embed
-end
-
-local SelectMenuInstance   = {}
-SelectMenuInstance.__index = SelectMenuInstance
-
-function SelectMenuInstance.new()
-    return setmetatable({
-        CustomId    = nil,
-        Placeholder = "Select an option...",
-        MinValues   = 1,
-        MaxValues   = 1,
-        Options     = {}
-    }, SelectMenuInstance)
-end
-
-function SelectMenuInstance:AddOption(label, value, description, emoji, default)
-    table.insert(self.Options, {
-        label       = label,
-        value       = value,
-        description = description,
-        emoji       = emoji and { name = emoji } or nil,
-        default     = default or false
-    })
-    return self
-end
-
-function SelectMenuInstance:Build()
-    return {
-        type        = 3,
-        custom_id   = self.CustomId,
-        placeholder = self.Placeholder,
-        min_values  = self.MinValues,
-        max_values  = self.MaxValues,
-        options     = self.Options
-    }
-end
-
-local ButtonInstance   = {}
-ButtonInstance.__index = ButtonInstance
-local _btn_styles      = { primary=1, secondary=2, success=3, danger=4, link=5 }
-
-function ButtonInstance.new()
-    return setmetatable({
-        Label    = "Button", Style    = "primary",
-        CustomId = nil,      Url      = nil,
-        Emoji    = nil,      Disabled = false
-    }, ButtonInstance)
-end
-
-function ButtonInstance:Build()
-    return {
-        type      = 2,
-        style     = _btn_styles[self.Style] or 1,
-        label     = self.Label,
-        custom_id = self.CustomId,
-        url       = self.Url,
-        emoji     = self.Emoji and { name = self.Emoji } or nil,
-        disabled  = self.Disabled
-    }
-end
-
-local ActionRowInstance   = {}
-ActionRowInstance.__index = ActionRowInstance
-
-function ActionRowInstance.new()
-    return setmetatable({ Components = {} }, ActionRowInstance)
-end
-
-function ActionRowInstance:Add(component)
-    if type(component) == "table" and type(component.Build) == "function" then
-        table.insert(self.Components, component:Build())
-    else
-        table.insert(self.Components, component)
-    end
-    return self
-end
-
-function ActionRowInstance:Build()
-    if #self.Components == 0 then
-        log_warn("ActionRow:Build() called with no components — skipping.")
-        return nil
-    end
-    return { type = 1, components = self.Components }
-end
-
-local _instance_types = {
-    Embed      = EmbedInstance.new,
-    Button     = ButtonInstance.new,
-    SelectMenu = SelectMenuInstance.new,
-    ActionRow  = ActionRowInstance.new,
-}
-
-silicord.Instance = {
-    new = function(class_name)
-        local ctor = _instance_types[class_name]
-        if not ctor then
-            error("silicord.Instance.new: unknown class '" .. tostring(class_name) .. "'")
-        end
-        return ctor()
-    end
-}
-
-
--- [DEPRECATED] Legacy table-syntax helpers maybe removed in v1.2.x or later
-
-function silicord.Embed(data)
-    log_deprecated("silicord.Embed({ ... })", 'silicord.Instance.new("Embed")')
-    local embed = {}
-    if data.color then embed.color = resolve_color(data.color) end
-    if data.title       then embed.title       = data.title       end
-    if data.description then embed.description = data.description end
-    if data.url         then embed.url         = data.url         end
-    if data.timestamp   then embed.timestamp   = data.timestamp   end
-    if data.author then
-        embed.author = { name = data.author, icon_url = data.author_icon, url = data.author_url }
-    end
-    if data.footer then
-        embed.footer = { text = data.footer, icon_url = data.footer_icon }
-    end
-    if data.image     then embed.image     = { url = data.image }     end
-    if data.thumbnail then embed.thumbnail = { url = data.thumbnail } end
-    if data.fields then
-        embed.fields = {}
-        for _, field in ipairs(data.fields) do
-            table.insert(embed.fields, {
-                name   = field.name,
-                value  = field.value,
-                inline = field.inline or false
-            })
-        end
-    end
-    return embed
-end
-
-function silicord.Button(data)
-    log_deprecated("silicord.Button({ ... })", 'silicord.Instance.new("Button")')
-    local styles = { primary=1, secondary=2, success=3, danger=4, link=5 }
-    return {
-        type      = 2,
-        style     = styles[data.style] or data.style or 1,
-        label     = data.label,
-        custom_id = data.custom_id,
-        url       = data.url,
-        emoji     = data.emoji and { name = data.emoji } or nil,
-        disabled  = data.disabled or false
-    }
-end
-
-function silicord.SelectMenu(data)
-    log_deprecated("silicord.SelectMenu({ ... })", 'silicord.Instance.new("SelectMenu")')
-    return {
-        type        = 3,
-        custom_id   = data.custom_id,
-        placeholder = data.placeholder or "Select an option...",
-        min_values  = data.min_values or 1,
-        max_values  = data.max_values or 1,
-        options     = data.options or {}
-    }
-end
-
-function silicord.ActionRow(...)
-    log_deprecated("silicord.ActionRow(...)", 'silicord.Instance.new("ActionRow")')
-    local components = { ... }
-    return { type = 1, components = components }
-end
-
-
--- Rate Limit Bucket Controller
 
 local _rate_limit_pause = 0
 
@@ -724,7 +388,7 @@ local function make_request_sync(token, url, method, body, _retry_count)
     if body_str and #body_str > 0 then
         return json.decode(body_str), code
     end
-    return true, code  -- 204 No Content
+    return true, code
 end
 
 local function make_request(token, url, method, body)
@@ -733,18 +397,17 @@ local function make_request(token, url, method, body)
     end)
 end
 
+local function make_request_sync_return(token, url, method, body)
+    return make_request_sync(token, url, method, body)
+end
 
--- Token Validator for Checking
 local function validate_credentials(token, app_id)
     local https  = require("ssl.https")
     local result = {}
     local _, code = https.request({
         url    = "https://discord.com/api/v10/users/@me",
         method = "GET",
-        headers = {
-            ["Authorization"] = "Bot " .. token,
-            ["Content-Type"]  = "application/json",
-        },
+        headers = { ["Authorization"] = "Bot " .. token, ["Content-Type"] = "application/json" },
         source = ltn12.source.empty(),
         sink   = ltn12.sink.table(result),
         verify = "none"
@@ -755,10 +418,7 @@ local function validate_credentials(token, app_id)
         local _, code2 = https.request({
             url    = string.format("https://discord.com/api/v10/applications/%s/commands", app_id),
             method = "GET",
-            headers = {
-                ["Authorization"] = "Bot " .. token,
-                ["Content-Type"]  = "application/json",
-            },
+            headers = { ["Authorization"] = "Bot " .. token, ["Content-Type"] = "application/json" },
             source = ltn12.source.empty(),
             sink   = ltn12.sink.table(result2),
             verify = "none"
@@ -768,14 +428,12 @@ local function validate_credentials(token, app_id)
     return true
 end
 
--- Slash Command Option Types (SCOT)
 local OPTION_TYPES = {
     string  = 3, integer = 4, bool    = 5,
     boolean = 5, user    = 6, channel = 7,
     role    = 8, number  = 10, any    = 3
 }
 
--- Member Object and Actions
 local Member   = {}
 Member.__index = Member
 
@@ -808,13 +466,21 @@ function Member:Ban(reason, delete_days)
     log_info("Banned " .. self.username)
 end
 
-function Member:Timeout(seconds, reason)
+function Member:Timeout(seconds_or_enum, reason)
+        local seconds = seconds_or_enum
+    if seconds == nil then
+                make_request_sync(self._token,
+            string.format("https://discord.com/api/v10/guilds/%s/members/%s", self._guild_id, self.id),
+            "PATCH", json.encode({ communication_disabled_until = "9999-12-31T23:59:59Z" }))
+        log_info("Permanently timed out " .. self.username)
+        return
+    end
     local body = { communication_disabled_until = iso8601(seconds) }
     if reason then body.reason = reason end
     make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/members/%s", self._guild_id, self.id),
         "PATCH", json.encode(body))
-    log_info("Timed out " .. self.username .. " for " .. seconds .. "s")
+    log_info(string.format("Timed out %s for %ds", self.username, seconds))
 end
 
 function Member:RemoveTimeout()
@@ -847,8 +513,25 @@ function Member:SetNickname(nick)
     log_info("Set nickname for " .. self.username .. " to " .. tostring(nick))
 end
 
-function Member:ResetNickname()
-    self:SetNickname(json.null)
+function Member:ResetNickname() self:SetNickname(json.null) end
+
+function Member:GetStatus()
+        local ban_data = make_request_sync(self._token,
+        string.format("https://discord.com/api/v10/guilds/%s/bans/%s", self._guild_id, self.id),
+        "GET", "")
+    if ban_data and ban_data.user then
+        return Enum.UserStatusInGuild.Banned
+    end
+        local member_data = make_request_sync(self._token,
+        string.format("https://discord.com/api/v10/guilds/%s/members/%s", self._guild_id, self.id),
+        "GET", "")
+    if not member_data then
+        return Enum.UserStatusInGuild.Kicked
+    end
+    if member_data.communication_disabled_until then
+        return Enum.UserStatusInGuild.TimedOut
+    end
+    return Enum.UserStatusInGuild.None
 end
 
 function Member:SendDM(text, embed)
@@ -861,19 +544,14 @@ function Member:SendDM(text, embed)
             return
         end
         local payload = {}
-        if is_embed(text) then
-            payload.embeds = { text }
-        else
-            payload.content = text
-            if embed then payload.embeds = { embed } end
-        end
+        if is_embed(text) then payload.embeds = { text }
+        else payload.content = text; if embed then payload.embeds = { embed } end end
         make_request_sync(self._token,
             string.format("https://discord.com/api/v10/channels/%s/messages", dm_data.id),
             "POST", json.encode(payload))
     end)
 end
 
--- Guild Object and Actions
 local Guild   = {}
 Guild.__index = Guild
 
@@ -888,9 +566,10 @@ local CHANNEL_TYPES = {
 
 function Guild:CreateChannel(name, kind, options)
     options = options or {}
+        local ch_type = type(kind) == "number" and kind or (CHANNEL_TYPES[kind] or 0)
     local body = {
         name                = name,
-        type                = CHANNEL_TYPES[kind] or 0,
+        type                = ch_type,
         topic               = options.topic,
         parent_id           = options.parent_id,
         nsfw                = options.nsfw,
@@ -930,9 +609,7 @@ function Guild:CreateRole(name, color, permissions)
 end
 
 function Guild:EditRole(role_id, options)
-    if options.color then
-        options.color = resolve_color(options.color)
-    end
+    if options.color then options.color = resolve_color(options.color) end
     return make_request_sync(self._token,
         string.format("https://discord.com/api/v10/guilds/%s/roles/%s", self.id, role_id),
         "PATCH", json.encode(options))
@@ -951,9 +628,7 @@ function Guild:GetMembers(limit)
         "GET", "")
     if not data or type(data) ~= "table" then return {} end
     local members = {}
-    for _, m in ipairs(data) do
-        table.insert(members, Member.new(m, self.id, self._token))
-    end
+    for _, m in ipairs(data) do table.insert(members, Member.new(m, self.id, self._token)) end
     return members
 end
 
@@ -1048,7 +723,6 @@ function Guild:Edit(options)
     return data
 end
 
--- Interaction Object for Slash commands
 local Interaction   = {}
 Interaction.__index = Interaction
 
@@ -1131,19 +805,14 @@ function Interaction:SendPrivateMessage(text, embed)
             return
         end
         local payload = {}
-        if is_embed(text) then
-            payload.embeds = { text }
-        else
-            payload.content = text
-            if embed then payload.embeds = { embed } end
-        end
+        if is_embed(text) then payload.embeds = { text }
+        else payload.content = text; if embed then payload.embeds = { embed } end end
         make_request_sync(self._token,
             string.format("https://discord.com/api/v10/channels/%s/messages", dm_data.id),
             "POST", json.encode(payload))
     end)
 end
 
--- Message Object for OnMessage and prefix cmds
 local Message   = {}
 Message.__index = Message
 
@@ -1159,23 +828,7 @@ function Message.new(data, token, cache)
     return self
 end
 
-function Message:Reply(text, embed, components)
-    local payload = { message_reference = { message_id = self.id } }
-    if is_embed(text) then
-        payload.embeds = { text }
-    elseif type(text) == "table" then
-        payload.components = text
-    else
-        payload.content = text
-        if embed      then payload.embeds     = { embed }  end
-        if components then payload.components = components end
-    end
-    make_request(self._token,
-        string.format("https://discord.com/api/v10/channels/%s/messages", self.channel_id),
-        "POST", json.encode(payload))
-end
-
-function Message:Send(text, embed, components)
+local function build_message_payload(text, embed, components)
     local payload = {}
     if is_embed(text) then
         payload.embeds = { text }
@@ -1186,9 +839,28 @@ function Message:Send(text, embed, components)
         if embed      then payload.embeds     = { embed }  end
         if components then payload.components = components end
     end
-    make_request(self._token,
+    return payload
+end
+
+function Message:Reply(text, embed, components)
+    local payload = build_message_payload(text, embed, components)
+    payload.message_reference = { message_id = self.id }
+    local data = make_request_sync_return(self._token,
         string.format("https://discord.com/api/v10/channels/%s/messages", self.channel_id),
         "POST", json.encode(payload))
+    if data and type(data) == "table" and data.id then
+        return Message.new(data, self._token, self._cache)
+    end
+end
+
+function Message:Send(text, embed, components)
+    local payload = build_message_payload(text, embed, components)
+    local data = make_request_sync_return(self._token,
+        string.format("https://discord.com/api/v10/channels/%s/messages", self.channel_id),
+        "POST", json.encode(payload))
+    if data and type(data) == "table" and data.id then
+        return Message.new(data, self._token, self._cache)
+    end
 end
 
 function Message:Edit(text, embed, components)
@@ -1196,16 +868,7 @@ function Message:Edit(text, embed, components)
         log_error("Message:Edit() — message has no id. Only bot-sent messages can be edited.")
         return
     end
-    local payload = {}
-    if is_embed(text) then
-        payload.embeds = { text }
-    elseif type(text) == "table" then
-        payload.components = text
-    else
-        payload.content = text
-        if embed      then payload.embeds     = { embed }  end
-        if components then payload.components = components end
-    end
+    local payload = build_message_payload(text, embed, components)
     make_request(self._token,
         string.format("https://discord.com/api/v10/channels/%s/messages/%s", self.channel_id, self.id),
         "PATCH", json.encode(payload))
@@ -1218,6 +881,13 @@ function Message:React(emoji)
         "PUT", "{}")
 end
 
+function Message:Unreact(emoji)
+    make_request(self._token,
+        string.format("https://discord.com/api/v10/channels/%s/messages/%s/reactions/%s/@me",
+            self.channel_id, self.id, url_encode(emoji)),
+        "DELETE", "")
+end
+
 function Message:Delete()
     make_request(self._token,
         string.format("https://discord.com/api/v10/channels/%s/messages/%s", self.channel_id, self.id),
@@ -1228,13 +898,6 @@ function Message:Pin()
     make_request(self._token,
         string.format("https://discord.com/api/v10/channels/%s/pins/%s", self.channel_id, self.id),
         "PUT", "{}")
-end
-
-function Message:Unreact(emoji)
-    make_request(self._token,
-        string.format("https://discord.com/api/v10/channels/%s/messages/%s/reactions/%s/@me",
-            self.channel_id, self.id, url_encode(emoji)),
-        "DELETE", "")
 end
 
 function Message:Unpin()
@@ -1273,19 +936,379 @@ function Message:SendPrivateMessage(text, embed)
             return
         end
         local payload = {}
-        if is_embed(text) then
-            payload.embeds = { text }
-        else
-            payload.content = text
-            if embed then payload.embeds = { embed } end
-        end
+        if is_embed(text) then payload.embeds = { text }
+        else payload.content = text; if embed then payload.embeds = { embed } end end
         make_request_sync(self._token,
             string.format("https://discord.com/api/v10/channels/%s/messages", dm_data.id),
             "POST", json.encode(payload))
     end)
 end
 
--- Shard gateway connecting and register slash commands
+local EmbedInstance   = {}
+EmbedInstance.__index = EmbedInstance
+
+function EmbedInstance.new()
+    return setmetatable({
+        Title = nil, Description = nil, Color = nil, Url = nil, Timestamp = nil,
+        Author = nil, AuthorIcon = nil, AuthorUrl = nil,
+        Footer = nil, FooterIcon = nil,
+        Image = nil, Thumbnail = nil, Fields = {}
+    }, EmbedInstance)
+end
+
+function EmbedInstance:AddField(name, value, inline)
+    table.insert(self.Fields, { name = name, value = value, inline = inline or false })
+    return self
+end
+
+function EmbedInstance:Build()
+    local embed = {}
+    if self.Color       then embed.color       = resolve_color(self.Color) end
+    if self.Title       then embed.title       = self.Title       end
+    if self.Description then embed.description = self.Description end
+    if self.Url         then embed.url         = self.Url         end
+    if self.Timestamp   then embed.timestamp   = self.Timestamp   end
+    if self.Author      then embed.author      = { name = self.Author, icon_url = self.AuthorIcon, url = self.AuthorUrl } end
+    if self.Footer      then embed.footer      = { text = self.Footer, icon_url = self.FooterIcon } end
+    if self.Image       then embed.image       = { url = self.Image }     end
+    if self.Thumbnail   then embed.thumbnail   = { url = self.Thumbnail } end
+    if #self.Fields > 0 then embed.fields = self.Fields end
+    return embed
+end
+
+local SelectMenuInstance   = {}
+SelectMenuInstance.__index = SelectMenuInstance
+
+function SelectMenuInstance.new()
+    return setmetatable({
+        CustomId = nil, Placeholder = "Select an option...",
+        MinValues = 1, MaxValues = 1, Options = {}
+    }, SelectMenuInstance)
+end
+
+function SelectMenuInstance:AddOption(label, value, description, emoji, default)
+    table.insert(self.Options, {
+        label = label, value = value, description = description,
+        emoji = emoji and { name = emoji } or nil, default = default or false
+    })
+    return self
+end
+
+function SelectMenuInstance:Build()
+    return {
+        type = 3, custom_id = self.CustomId, placeholder = self.Placeholder,
+        min_values = self.MinValues, max_values = self.MaxValues, options = self.Options
+    }
+end
+
+local ButtonInstance   = {}
+ButtonInstance.__index = ButtonInstance
+local _btn_styles      = { primary=1, secondary=2, success=3, danger=4, link=5 }
+
+function ButtonInstance.new()
+    return setmetatable({
+        Label = "Button", Style = "primary", CustomId = nil,
+        Url = nil, Emoji = nil, Disabled = false
+    }, ButtonInstance)
+end
+
+function ButtonInstance:Build()
+    return {
+        type = 2, style = _btn_styles[self.Style] or 1,
+        label = self.Label, custom_id = self.CustomId, url = self.Url,
+        emoji = self.Emoji and { name = self.Emoji } or nil, disabled = self.Disabled
+    }
+end
+
+local ActionRowInstance   = {}
+ActionRowInstance.__index = ActionRowInstance
+
+function ActionRowInstance.new()
+    return setmetatable({ Components = {} }, ActionRowInstance)
+end
+
+function ActionRowInstance:Add(component)
+    if type(component) == "table" and type(component.Build) == "function" then
+        table.insert(self.Components, component:Build())
+    else
+        table.insert(self.Components, component)
+    end
+    return self
+end
+
+function ActionRowInstance:Build()
+    if #self.Components == 0 then
+        log_warn("ActionRow:Build() called with no components — skipping.")
+        return nil
+    end
+    return { type = 1, components = self.Components }
+end
+
+local _instance_types = {
+    Embed = EmbedInstance.new, Button = ButtonInstance.new,
+    SelectMenu = SelectMenuInstance.new, ActionRow = ActionRowInstance.new,
+}
+
+silicord.Instance = {
+    new = function(class_name)
+        local ctor = _instance_types[class_name]
+        if not ctor then error("silicord.Instance.new: unknown class '" .. tostring(class_name) .. "'") end
+        return ctor()
+    end
+}
+
+local _tag_registry = {}
+local _object_tags  = {}
+
+silicord.CollectionService = {
+    AddTag = function(_, object, tag)
+        _tag_registry[tag]   = _tag_registry[tag]   or {}
+        _object_tags[object] = _object_tags[object] or {}
+        if not silicord.table.contains(_tag_registry[tag], object) then table.insert(_tag_registry[tag], object) end
+        if not silicord.table.contains(_object_tags[object], tag)  then table.insert(_object_tags[object], tag)  end
+    end,
+    RemoveTag = function(_, object, tag)
+        if _tag_registry[tag] then
+            local i = silicord.table.find(_tag_registry[tag], object)
+            if i then table.remove(_tag_registry[tag], i) end
+        end
+        if _object_tags[object] then
+            local i = silicord.table.find(_object_tags[object], tag)
+            if i then table.remove(_object_tags[object], i) end
+        end
+    end,
+    GetTagged = function(_, tag)    return _tag_registry[tag] or {} end,
+    GetTags   = function(_, object) return _object_tags[object] or {} end,
+    HasTag    = function(_, object, tag)
+        return silicord.table.contains(_object_tags[object] or {}, tag)
+    end,
+}
+
+local DataStore   = {}
+DataStore.__index = DataStore
+local _ds_cache   = {}
+
+local function ds_load(path)
+    local f = io.open(path, "r")
+    if not f then return {} end
+    local content = f:read("*a")
+    f:close()
+    if not content or content:match("^%s*$") then
+        log_warn("DataStore: file '" .. path .. "' was empty; starting fresh.")
+        return {}
+    end
+    local data, _, err = json.decode(content)
+    if err or type(data) ~= "table" then
+        local backup = path .. ".corrupted_" .. tostring(os.time())
+        local src = io.open(path, "r")
+        if src then
+            local raw = src:read("*a"); src:close()
+            local dst = io.open(backup, "w")
+            if dst then dst:write(raw); dst:close() end
+        end
+        log_error(string.format("DataStore: '%s' had invalid JSON (backed up to '%s'). Starting fresh.", path, backup))
+        return {}
+    end
+    return data
+end
+
+local function ds_save(path, data)
+    local tmp = path .. ".tmp"
+    local f   = io.open(tmp, "w")
+    if not f then log_error("DataStore: could not write to " .. tmp); return false end
+    local ok, encoded = pcall(json.encode, data)
+    if not ok then
+        log_error("DataStore: json.encode failed: " .. tostring(encoded))
+        f:close(); os.remove(tmp); return false
+    end
+    f:write(encoded); f:close()
+    local renamed = os.rename(tmp, path)
+    if not renamed then
+        local src = io.open(tmp, "r")
+        if src then
+            local content = src:read("*a"); src:close()
+            local dst = io.open(path, "w")
+            if dst then dst:write(content); dst:close()
+            else log_error("DataStore: could not write final file '" .. path .. "'"); return false end
+        end
+        os.remove(tmp)
+    end
+    return true
+end
+
+local function new_datastore(name)
+    if _ds_cache[name] then return _ds_cache[name] end
+    local path  = name .. ".datastore.json"
+    local store = setmetatable({ _name = name, _path = path, _data = ds_load(path) }, DataStore)
+    _ds_cache[name] = store
+    log_info("DataStore loaded: " .. name)
+    return store
+end
+
+function DataStore:SetAsync(key, value)      self._data[key] = value; ds_save(self._path, self._data) end
+function DataStore:GetAsync(key)             return self._data[key] end
+function DataStore:RemoveAsync(key)          self._data[key] = nil;   ds_save(self._path, self._data) end
+function DataStore:GetKeys()                 return silicord.table.keys(self._data) end
+
+function DataStore:IncrementAsync(key, delta)
+    delta = delta or 1
+    local current = self._data[key]
+    if current ~= nil and type(current) ~= "number" then
+        log_warn(string.format("DataStore('%s'):IncrementAsync('%s') — not a number; resetting to 0.", self._name, tostring(key)))
+        current = 0
+    end
+    self._data[key] = (current or 0) + delta
+    ds_save(self._path, self._data)
+    return self._data[key]
+end
+
+local DataStoreService = {}
+DataStoreService.__index = DataStoreService
+
+function DataStoreService:GetDataStore(name)
+    return new_datastore(name)
+end
+
+local HttpService = {}
+HttpService.__index = HttpService
+
+function HttpService:Request(url, method, body, headers)
+    local https = require("ssl.https")
+    method = (method or "GET"):upper()
+    local result   = {}
+    local req_headers = {
+        ["Content-Type"]  = "application/json",
+        ["User-Agent"]    = "silicord/" .. silicord._VERSION,
+    }
+    if headers then
+        for k, v in pairs(headers) do req_headers[k] = v end
+    end
+    local source
+    if body and #body > 0 then
+        req_headers["Content-Length"] = tostring(#body)
+        source = ltn12.source.string(body)
+    else
+        source = ltn12.source.empty()
+    end
+    local _, code = https.request({
+        url     = url,
+        method  = method,
+        headers = req_headers,
+        source  = source,
+        sink    = ltn12.sink.table(result),
+        verify  = "none"
+    })
+    return table.concat(result), code
+end
+
+function HttpService:Get(url, headers)
+    return self:Request(url, "GET", nil, headers)
+end
+
+function HttpService:Post(url, body, headers)
+    return self:Request(url, "POST", body, headers)
+end
+
+local PresenceService = {}
+PresenceService.__index = PresenceService
+
+function PresenceService:SetPresence(client, options)
+    options = options or {}
+    local status   = options.presence or Enum.Presence.Online
+    local text     = options.status   or ""
+    local act_type = options.type     or 0   
+
+    local payload = {
+        op = 3,
+        d  = {
+            since      = json.null,
+            afk        = false,
+            status     = status,
+            activities = text ~= "" and {
+                { name = text, type = act_type }
+            } or json.null,
+        }
+    }
+        for _, conn in pairs(client._conns) do
+        pcall(send_frame, conn, json.encode(payload))
+    end
+    log_info(string.format("Presence set: %s | \"%s\"", status, text))
+end
+
+local _service_constructors = {
+    DataStoreService = function() return setmetatable({}, DataStoreService) end,
+    HttpService      = function() return setmetatable({}, HttpService)      end,
+    PresenceService  = function() return setmetatable({}, PresenceService)  end,
+}
+
+function silicord:GetService(name)
+    if silicord._services[name] then return silicord._services[name] end
+    local ctor = _service_constructors[name]
+    if not ctor then
+        error(string.format(
+            "silicord:GetService('%s'): unknown service. " ..
+            "Valid names: DataStoreService, HttpService, PresenceService", name))
+    end
+    local service = ctor()
+    silicord._services[name] = service
+    log_info("Service initialised: " .. name)
+    return service
+end
+
+function silicord.DataStore(name)
+    log_deprecated(
+        'silicord.DataStore("name")',
+        'silicord:GetService("DataStoreService"):GetDataStore("name")'
+    )
+    return new_datastore(name)
+end
+
+function silicord.Embed(data)
+    log_deprecated("silicord.Embed({ ... })", 'silicord.Instance.new("Embed")')
+    local embed = {}
+    if data.color then embed.color = resolve_color(data.color) end
+    if data.title       then embed.title       = data.title       end
+    if data.description then embed.description = data.description end
+    if data.url         then embed.url         = data.url         end
+    if data.timestamp   then embed.timestamp   = data.timestamp   end
+    if data.author      then embed.author = { name = data.author, icon_url = data.author_icon, url = data.author_url } end
+    if data.footer      then embed.footer = { text = data.footer, icon_url = data.footer_icon } end
+    if data.image       then embed.image     = { url = data.image }     end
+    if data.thumbnail   then embed.thumbnail = { url = data.thumbnail } end
+    if data.fields then
+        embed.fields = {}
+        for _, field in ipairs(data.fields) do
+            table.insert(embed.fields, { name = field.name, value = field.value, inline = field.inline or false })
+        end
+    end
+    return embed
+end
+
+function silicord.Button(data)
+    log_deprecated("silicord.Button({ ... })", 'silicord.Instance.new("Button")')
+    local styles = { primary=1, secondary=2, success=3, danger=4, link=5 }
+    return {
+        type = 2, style = styles[data.style] or data.style or 1,
+        label = data.label, custom_id = data.custom_id, url = data.url,
+        emoji = data.emoji and { name = data.emoji } or nil, disabled = data.disabled or false
+    }
+end
+
+function silicord.SelectMenu(data)
+    log_deprecated("silicord.SelectMenu({ ... })", 'silicord.Instance.new("SelectMenu")')
+    return {
+        type = 3, custom_id = data.custom_id,
+        placeholder = data.placeholder or "Select an option...",
+        min_values = data.min_values or 1, max_values = data.max_values or 1,
+        options = data.options or {}
+    }
+end
+
+function silicord.ActionRow(...)
+    log_deprecated("silicord.ActionRow(...)", 'silicord.Instance.new("ActionRow")')
+    return { type = 1, components = { ... } }
+end
+
 local function register_slash_commands(token, app_id, pending_slash)
     for _, pending in ipairs(pending_slash) do
         local api_options = {}
@@ -1383,8 +1406,7 @@ local function start_shard(token, shard_id, total_shards, client)
 
                     if data.op == 0 and data.t == "READY" then
                         if total_shards > 1 then
-                            log_info(string.format("Shard %d online! Logged in as %s.",
-                                shard_id, data.d.user.username))
+                            log_info(string.format("Shard %d online! Logged in as %s.", shard_id, data.d.user.username))
                         else
                             log_info("Bot online! Logged in as " .. data.d.user.username .. ". Press Ctrl+C to stop.")
                         end
@@ -1403,25 +1425,19 @@ local function start_shard(token, shard_id, total_shards, client)
                         client.cache.guilds[data.d.id] = data.d
                         if data.d.members then
                             for _, member in ipairs(data.d.members) do
-                                if member.user then
-                                    client.cache.users[member.user.id] = member.user
-                                end
+                                if member.user then client.cache.users[member.user.id] = member.user end
                             end
                         end
                     end
 
                     if data.t == "MESSAGE_CREATE" then
                         local msg = Message.new(data.d, token, client.cache)
-                        if msg.author then
-                            client.cache.users[msg.author.id] = msg.author
-                        end
+                        if msg.author then client.cache.users[msg.author.id] = msg.author end
                         if msg.author and not msg.author.bot then
                             if msg.content:sub(1, #client._prefix) == client._prefix then
                                 local body = msg.content:sub(#client._prefix + 1)
                                 local parts = {}
-                                for word in body:gmatch("%S+") do
-                                    table.insert(parts, word)
-                                end
+                                for word in body:gmatch("%S+") do table.insert(parts, word) end
                                 local cmd_name = parts[1]
                                 local args = {}
                                 for i = 2, #parts do args[i - 1] = parts[i] end
@@ -1430,7 +1446,7 @@ local function start_shard(token, shard_id, total_shards, client)
                                     local allowed = true
                                     for _, hook in ipairs(client._middleware) do
                                         local result = hook(msg, cmd_name, args)
-                                        if result == false then allowed = false break end
+                                        if result == false then allowed = false; break end
                                     end
                                     if allowed then
                                         silicord.task.spawn(function()
@@ -1468,7 +1484,7 @@ local function start_shard(token, shard_id, total_shards, client)
                                 local allowed = true
                                 for _, hook in ipairs(client._middleware) do
                                     local result = hook(interaction, cmd_name, interaction.args)
-                                    if result == false then allowed = false break end
+                                    if result == false then allowed = false; break end
                                 end
                                 if allowed then
                                     silicord.task.spawn(function()
@@ -1511,9 +1527,6 @@ local function start_shard(token, shard_id, total_shards, client)
     end)
 end
 
-
--- Connecting bot and settings
-
 function silicord.Connect(config)
     local token  = config.token
     local prefix = config.prefix or "!"
@@ -1542,7 +1555,7 @@ function silicord.Connect(config)
         _components    = {},
         _middleware    = {},
         _app_id        = app_id,
-        cache = { guilds = {}, users = {}, bot_user = nil }
+        cache          = { guilds = {}, users = {}, bot_user = nil }
     }
 
     function client:CreateCommand(name, callback)
@@ -1551,10 +1564,7 @@ function silicord.Connect(config)
     end
 
     function client:CreateSlashCommand(name, cfg, callback)
-        if not self._app_id then
-            log_error("app_id required for slash commands.")
-            return
-        end
+        if not self._app_id then log_error("app_id required for slash commands."); return end
         self._slash[name] = { options = cfg.options or {}, callback = callback }
         table.insert(self._pending_slash, { name = name, cfg = cfg })
         log_info("Queued slash command: /" .. name)
@@ -1572,28 +1582,20 @@ function silicord.Connect(config)
     table.insert(silicord._clients, client)
 
     silicord.task.spawn(function()
-        local gateway_data = make_request_sync(token,
-            "https://discord.com/api/v10/gateway/bot", "GET", "")
+        local gateway_data = make_request_sync(token, "https://discord.com/api/v10/gateway/bot", "GET", "")
         local total_shards = 1
         if gateway_data and type(gateway_data) == "table" and gateway_data.shards then
             total_shards = gateway_data.shards
         end
-        if total_shards > 1 then
-            log_info(string.format("Spawning %d shards...", total_shards))
-        end
+        if total_shards > 1 then log_info(string.format("Spawning %d shards...", total_shards)) end
         for shard_id = 0, total_shards - 1 do
             start_shard(token, shard_id, total_shards, client)
-            if total_shards > 1 and shard_id < total_shards - 1 then
-                silicord.task.wait(5)
-            end
+            if total_shards > 1 and shard_id < total_shards - 1 then silicord.task.wait(5) end
         end
     end)
 
     return client
 end
-
-
--- Run bot and close frame
 
 function silicord.Run()
     log_info("Engine running...")
@@ -1602,9 +1604,7 @@ function silicord.Run()
         log_error("Engine error: " .. tostring(err))
     end
     for _, c in ipairs(silicord._clients) do
-        for _, conn in pairs(c._conns) do
-            pcall(send_close_frame, conn)
-        end
+        for _, conn in pairs(c._conns) do pcall(send_close_frame, conn) end
     end
     log_info("Bot disconnected.")
     os.exit(0)

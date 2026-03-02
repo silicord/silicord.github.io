@@ -6,25 +6,23 @@
 - Addition of new SilicordServices and `silicord:GetService("service")`:
     - `AIService`: Use a paid/free API key to connect an external AI to your bot.
     - `HttpService`: Make requests to external HTTP links.
-    - `VoiceChatService`: Allows the bot creator to use functions like `VCS:JoinVoiceChannel(channel)`, etc.
-- Addition of `client:SetPresence()`
-    - Example:
+    - `PresenceService`: Set the presence and status
+    They must define the service FIRST before they will be able to use it (saving RAM)
     ```lua
     local silicord = require("silicord")
+    local Presence = silicord:GetService("PresenceService")
 
+    -- define client
     local client = silicord.Connect({
-        token = 'MTQ..........'
-        prefix = '!'
-        app_id = '123456789012' -- required for presence
+        token = "..."
+        prefix = ">"
+        app_id = "1234567890" -- also required for presence
     })
 
-    client:SetPresence({
-        presence = 'online' -- online, dnd, idle, or invisible
-        status = 'blah blah blah' -- the status that appears under the bots name
+    Presence:SetPresence(client, { -- note that instead of client:SetPresence, we use Presence:SetPresence(client, {})
+        presence = Enum.Presence.Online -- uses the Enum feature
+        status = "I'm up and running!" -- the text displayed below the bots name.
     })
-
-    -- command logic below
-    ```
     
 - Allow `:Reply()` and `:Send()` to return the message object. For example
     ```lua
@@ -32,3 +30,10 @@
     silicord.task.wait(2)
     response:Edit("This message has been edited now!")
     ```
+
+- Introduction of `Enum` types, for example:
+    - `Enum.Permissions`(every permission ranging from `ReadMessages` to `Administrator`)
+    - `Enum.Presence` (online, dnd, idle, or invisible)
+    - `Enum.ChannelType` (text, gdm, dm, voice, category, forum, thread, media, stage, or announcement)
+    - `Enum.PunishmentLength` (ranges from 1Minute to 1Week or Permanent)
+    - `Enum.UserStatusInGuild` (Banned? Kicked? Timed out? None?)

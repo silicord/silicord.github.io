@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quickstart — silicord</title>
+  <meta name="description" content="Silicord is a LuaRocks framework that lets Roblox developers build Discord bots using familiar syntax such as task.wait(), Signals, method chaining, and all.">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://silicord.github.io/">
+  <meta property="og:title" content="silicord | Discord bots for Roblox devs">
+  <meta property="og:description" content="Silicord is a LuaRocks framework that lets Roblox developers build Discord bots using familiar syntax such as task.wait(), Signals, method chaining, and all.">
+  <meta property="og:image" content="https://silicord.github.io/[silicord].png">
+  <meta name="theme-color" content="#5B68EE">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://silicord.github.io/">
+  <meta name="twitter:title" content="silicord | Discord bots for Roblox devs">
+  <meta name="twitter:description" content="Silicord is a LuaRocks framework that lets Roblox developers build Discord bots using familiar syntax such as task.wait(), Signals, method chaining, and all.">
+  <meta name="twitter:image" content="https://silicord.github.io/[silicord].png">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -149,11 +162,11 @@ silicord.<span class="fn">Run</span>()</code></pre>
           <div class="code-block">
             <div class="code-header">
               <span class="code-lang">bash</span>
-              <button class="copy-code" data-code="lua bot.lua">copy</button>
+              <button class="copy-code" data-code="lua &lt;filename&gt;.lua">copy</button>
             </div>
-            <pre><code>lua bot.lua</code></pre>
+            <pre><code>lua &lt;filename&gt;.lua</code></pre>
           </div>
-          <p class="after-step">Your bot is now online. Type <code>!ping</code> in any channel it has access to and it will reply <strong>Pong!</strong></p>
+          <p class="after-step">Your bot is now online. Type <code>!ping</code> in any channel it has access to and it will reply <strong>"Pong"</strong>!</p>
         </div>
       </div>
 
@@ -182,13 +195,13 @@ silicord.<span class="fn">Run</span>()</code></pre>
         <button class="copy-code" data-code='local client = silicord.Connect({
     token  = "your token",
     prefix = "!",
-    app_id = "your application id"  -- only needed for slash commands
+    app_id = "your application id"  -- only needed for slash commands and presence updates
 })'>copy</button>
       </div>
       <pre><code class="lua"><span class="kw">local</span> client = silicord.<span class="fn">Connect</span>({
     token  = <span class="str">"your token"</span>,
     prefix = <span class="str">"!"</span>,
-    app_id = <span class="str">"your application id"</span>  <span class="cmt">-- only needed for slash commands</span>
+    app_id = <span class="str">"your application id"</span>  <span class="cmt">-- only needed for slash commands and presence updates</span>
 })</code></pre>
     </div>
   </section>

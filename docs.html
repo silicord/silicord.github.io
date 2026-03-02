@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Docs — silicord</title>
+  <meta name="description" content="Silicord is a LuaRocks framework that lets Roblox developers build Discord bots using familiar syntax such as task.wait(), Signals, method chaining, and all.">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://silicord.github.io/">
+  <meta property="og:title" content="silicord | Discord bots for Roblox devs">
+  <meta property="og:description" content="Silicord is a LuaRocks framework that lets Roblox developers build Discord bots using familiar syntax such as task.wait(), Signals, method chaining, and all.">
+  <meta property="og:image" content="https://silicord.github.io/[silicord].png">
+  <meta name="theme-color" content="#5B68EE">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://silicord.github.io/">
+  <meta name="twitter:title" content="silicord | Discord bots for Roblox devs">
+  <meta name="twitter:description" content="Silicord is a LuaRocks framework that lets Roblox developers build Discord bots using familiar syntax such as task.wait(), Signals, method chaining, and all.">
+  <meta name="twitter:image" content="https://silicord.github.io/[silicord].png">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -107,7 +120,7 @@
   <section class="page-hero">
     <div class="section-label reveal">Reference</div>
     <h1 class="page-title reveal">Documentation</h1>
-    <p class="page-sub reveal">Everything silicord exposes, with examples.</p>
+    <p class="page-sub reveal">Everything you need to know about silicord is all listed below.</p>
   </section>
 
   <!-- DOCS LAYOUT -->
@@ -134,8 +147,17 @@
           <a href="#components" class="sidebar-link">Buttons &amp; Menus</a>
         </div>
         <div class="sidebar-group">
+          <div class="sidebar-group-label">Services</div>
+          <a href="#getservice" class="sidebar-link">GetService</a>
+          <a href="#enum" class="sidebar-link">Enum</a>
+          <a href="#datastoreservice" class="sidebar-link">DataStoreService</a>
+          <a href="#httpservice" class="sidebar-link">HttpService</a>
+          <a href="#presenceservice" class="sidebar-link">PresenceService</a>
+          <a href="#aiservice" class="sidebar-link">AIService</a>
+        </div>
+        <div class="sidebar-group">
           <div class="sidebar-group-label">Advanced</div>
-          <a href="#datastore" class="sidebar-link">DataStore</a>
+          <a href="#datastore" class="sidebar-link">DataStore <span class="badge badge-deprecated" style="font-size:0.6rem;padding:1px 5px;margin-left:2px;top:0">deprecated</span></a>
           <a href="#signal" class="sidebar-link">Signal</a>
           <a href="#stdlib" class="sidebar-link">Std Libraries</a>
           <a href="#collection" class="sidebar-link">CollectionService</a>
@@ -151,9 +173,7 @@
     <!-- MAIN CONTENT -->
     <main class="docs-main">
 
-      <!-- ═══════════════════════════════════════════════════════
-           COMMANDS
-      ════════════════════════════════════════════════════════ -->
+      <!-- COMMANDS -->
       <section class="doc-section" id="commands">
         <div class="doc-section-label">Core</div>
         <h2 class="doc-section-title">Commands</h2>
@@ -229,37 +249,73 @@ end)'>copy</button></div>
         <h3 class="doc-sub" style="margin-top:2.5rem">Error Handling</h3>
         <p class="doc-p">Listen to <code>client.OnError</code> to catch command errors without crashing the bot. The signal fires with an error type string, the context object, the command name, and the error message.</p>
         <div class="code-block">
-          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- Error types: "CommandError", "MissingArgument", "CommandNotFound",
---               "SlashCommandError", "UnknownInteraction", "ComponentError"
-client.OnError:Connect(function(err_type, ctx, cmd, err_msg)
-    print("[" .. err_type .. "] /" .. cmd .. " — " .. tostring(err_msg))
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='client.OnError:Connect(function(error_type, ctx, name, detail)
+    if error_type == "CommandNotFound" then
+        ctx:Reply("❌ Unknown command `!" .. name .. "`.")
+    elseif error_type == "MissingArgument" then
+        ctx:Reply("❌ Missing argument for `!" .. name .. "`.")
+    elseif error_type == "CommandError" then
+        ctx:Reply("❌ Something went wrong running `!" .. name .. "`.")
+        print("CommandError in !" .. name .. ": " .. detail)
+    elseif error_type == "SlashCommandError" then
+        ctx:Reply("❌ Something went wrong running `/" .. name .. "`.")
+    elseif error_type == "ComponentError" then
+        print("ComponentError in " .. name .. ": " .. detail)
+    elseif error_type == "UnknownInteraction" then
+        ctx:Reply("❌ Unknown slash command.")
+    end
 end)'>copy</button></div>
-          <pre><code class="lua"><span class="cmt">-- Error types: "CommandError", "MissingArgument", "CommandNotFound",</span>
-<span class="cmt">--               "SlashCommandError", "UnknownInteraction", "ComponentError"</span>
-client.OnError:<span class="fn">Connect</span>(<span class="kw">function</span>(err_type, ctx, cmd, err_msg)
-    <span class="fn">print</span>(<span class="str">"["</span> .. err_type .. <span class="str">"] /"</span> .. cmd .. <span class="str">" — "</span> .. <span class="fn">tostring</span>(err_msg))
+          <pre><code class="lua">client.OnError:<span class="fn">Connect</span>(<span class="kw">function</span>(error_type, ctx, name, detail)
+    <span class="kw">if</span> error_type == <span class="str">"CommandNotFound"</span> <span class="kw">then</span>
+        ctx:<span class="fn">Reply</span>(<span class="str">"❌ Unknown command `!"</span> .. name .. <span class="str">"`."</span>)
+    <span class="kw">elseif</span> error_type == <span class="str">"MissingArgument"</span> <span class="kw">then</span>
+        ctx:<span class="fn">Reply</span>(<span class="str">"❌ Missing argument for `!"</span> .. name .. <span class="str">"`."</span>)
+    <span class="kw">elseif</span> error_type == <span class="str">"CommandError"</span> <span class="kw">then</span>
+        ctx:<span class="fn">Reply</span>(<span class="str">"❌ Something went wrong running `!"</span> .. name .. <span class="str">"`."</span>)
+        <span class="fn">print</span>(<span class="str">"CommandError in !"</span> .. name .. <span class="str">": "</span> .. detail)
+    <span class="kw">elseif</span> error_type == <span class="str">"SlashCommandError"</span> <span class="kw">then</span>
+        ctx:<span class="fn">Reply</span>(<span class="str">"❌ Something went wrong running `/"</span> .. name .. <span class="str">"`."</span>)
+    <span class="kw">elseif</span> error_type == <span class="str">"ComponentError"</span> <span class="kw">then</span>
+        <span class="fn">print</span>(<span class="str">"ComponentError in "</span> .. name .. <span class="str">": "</span> .. detail)
+    <span class="kw">elseif</span> error_type == <span class="str">"UnknownInteraction"</span> <span class="kw">then</span>
+        ctx:<span class="fn">Reply</span>(<span class="str">"❌ Unknown slash command."</span>)
+    <span class="kw">end</span>
 <span class="kw">end</span>)</code></pre>
+        </div>
+
+        <div class="method-table" style="margin-top:1.5rem">
+          <div class="method-row header"><div>Error type</div><div>When it fires</div></div>
+          <div class="method-row"><div><code>CommandNotFound</code></div><div>User typed an unregistered prefix command</div></div>
+          <div class="method-row"><div><code>MissingArgument</code></div><div>Command errored and args were empty</div></div>
+          <div class="method-row"><div><code>CommandError</code></div><div>Command callback threw a runtime error</div></div>
+          <div class="method-row"><div><code>SlashCommandError</code></div><div>Slash command callback threw a runtime error</div></div>
+          <div class="method-row"><div><code>ComponentError</code></div><div>Component callback threw a runtime error</div></div>
+          <div class="method-row"><div><code>UnknownInteraction</code></div><div>Slash command triggered with no registered handler</div></div>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           MESSAGE
-      ════════════════════════════════════════════════════════ -->
+      <!-- MESSAGE -->
       <section class="doc-section" id="message">
         <div class="doc-section-label">Core</div>
         <h2 class="doc-section-title">Message Object</h2>
         <p class="doc-p">The <code>message</code> object is passed to every prefix command handler.</p>
 
+        <div class="new-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div><strong>v1.2.0:</strong> <code>message:Reply()</code> and <code>message:Send()</code> now return a <strong>Message object</strong>, so you can chain edits, reactions, or deletes on the sent message.</div>
+        </div>
+
         <div class="method-table">
           <div class="method-row header"><div>Method</div><div>Description</div></div>
-          <div class="method-row"><div><code>message:Reply(text)</code></div><div>Reply pinging the author</div></div>
-          <div class="method-row"><div><code>message:Reply(text, embed)</code></div><div>Reply with text and an embed</div></div>
-          <div class="method-row"><div><code>message:Reply(text, embed, components)</code></div><div>Reply with text, embed, and buttons/menus</div></div>
-          <div class="method-row"><div><code>message:Send(text)</code></div><div>Send without pinging the author</div></div>
-          <div class="method-row"><div><code>message:Send(text, embed)</code></div><div>Send with an embed, no ping</div></div>
-          <div class="method-row"><div><code>message:Send(text, embed, components)</code></div><div>Send with all components</div></div>
+          <div class="method-row"><div><code>message:Reply(text)</code></div><div>Reply pinging the author; <strong>returns Message</strong></div></div>
+          <div class="method-row"><div><code>message:Reply(text, embed)</code></div><div>Reply with text and an embed; <strong>returns Message</strong></div></div>
+          <div class="method-row"><div><code>message:Reply(text, embed, components)</code></div><div>Reply with text, embed, and buttons/menus; <strong>returns Message</strong></div></div>
+          <div class="method-row"><div><code>message:Send(text)</code></div><div>Send without pinging the author; <strong>returns Message</strong></div></div>
+          <div class="method-row"><div><code>message:Send(text, embed)</code></div><div>Send with an embed, no ping; <strong>returns Message</strong></div></div>
+          <div class="method-row"><div><code>message:Send(text, embed, components)</code></div><div>Send with all components; <strong>returns Message</strong></div></div>
           <div class="method-row"><div><code>message:Edit(text)</code></div><div>Edit the bot's own message</div></div>
           <div class="method-row"><div><code>message:React("👍")</code></div><div>Add a reaction</div></div>
+          <div class="method-row"><div><code>message:Unreact("👍")</code> <span class="badge badge-new">v1.2.0</span></div><div>Remove a reaction the bot placed</div></div>
           <div class="method-row"><div><code>message:Delete()</code></div><div>Delete the message</div></div>
           <div class="method-row"><div><code>message:Pin()</code></div><div>Pin the message</div></div>
           <div class="method-row"><div><code>message:Unpin()</code></div><div>Unpin the message</div></div>
@@ -267,6 +323,38 @@ client.OnError:<span class="fn">Connect</span>(<span class="kw">function</span>(
           <div class="method-row"><div><code>message:GetMember()</code></div><div>Returns a Member object for the author</div></div>
           <div class="method-row"><div><code>message:SendPrivateMessage(text)</code></div><div>DM the message author</div></div>
           <div class="method-row"><div><code>message:SendPrivateMessage(text, embed)</code></div><div>DM with an embed</div></div>
+        </div>
+
+        <h3 class="doc-sub" style="margin-top:2rem">Chaining on returned Message <span class="badge badge-new">v1.2.0</span></h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- Edit the reply after a delay
+client:CreateCommand("temp", function(message, args)
+    local response = message:Reply("Processing...")
+    silicord.task.wait(3)
+    response:Edit("Done! ✅")
+end)
+
+-- Auto-delete the bot response
+client:CreateCommand("autodelete", function(message, args)
+    local response = message:Send("This disappears in 5 seconds.")
+    silicord.task.delay(5, function()
+        response:Delete()
+    end)
+end)'>copy</button></div>
+          <pre><code class="lua"><span class="cmt">-- Edit the reply after a delay</span>
+client:<span class="fn">CreateCommand</span>(<span class="str">"temp"</span>, <span class="kw">function</span>(message, args)
+    <span class="kw">local</span> response = message:<span class="fn">Reply</span>(<span class="str">"Processing..."</span>)
+    silicord.task.<span class="fn">wait</span>(<span class="num">3</span>)
+    response:<span class="fn">Edit</span>(<span class="str">"Done! ✅"</span>)
+<span class="kw">end</span>)
+
+<span class="cmt">-- Auto-delete the bot response</span>
+client:<span class="fn">CreateCommand</span>(<span class="str">"autodelete"</span>, <span class="kw">function</span>(message, args)
+    <span class="kw">local</span> response = message:<span class="fn">Send</span>(<span class="str">"This disappears in 5 seconds."</span>)
+    silicord.task.<span class="fn">delay</span>(<span class="num">5</span>, <span class="kw">function</span>()
+        response:<span class="fn">Delete</span>()
+    <span class="kw">end</span>)
+<span class="kw">end</span>)</code></pre>
         </div>
 
         <h3 class="doc-sub" style="margin-top:2rem">message.author</h3>
@@ -280,9 +368,7 @@ message.author.bot       <span class="cmt">-- true if the author is a bot</span>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           INTERACTION
-      ════════════════════════════════════════════════════════ -->
+      <!-- INTERACTION -->
       <section class="doc-section" id="interaction">
         <div class="doc-section-label">Core</div>
         <h2 class="doc-section-title">Interaction Object</h2>
@@ -307,9 +393,7 @@ message.author.bot       <span class="cmt">-- true if the author is a bot</span>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           MEMBER
-      ════════════════════════════════════════════════════════ -->
+      <!-- MEMBER -->
       <section class="doc-section" id="member">
         <div class="doc-section-label">Objects</div>
         <h2 class="doc-section-title">Member Object</h2>
@@ -327,7 +411,7 @@ local member = guild:GetMember(user_id)'>copy</button></div>
           <div class="method-row header"><div>Method</div><div>Description</div></div>
           <div class="method-row"><div><code>member:Kick(reason)</code></div><div>Kick the member</div></div>
           <div class="method-row"><div><code>member:Ban(reason, delete_days)</code></div><div>Ban the member</div></div>
-          <div class="method-row"><div><code>member:Timeout(seconds, reason)</code></div><div>Apply a Discord timeout</div></div>
+          <div class="method-row"><div><code>member:Timeout(seconds, reason)</code></div><div>Apply a timeout. Accepts a raw number or <code>Enum.PunishmentLength</code> value</div></div>
           <div class="method-row"><div><code>member:RemoveTimeout()</code></div><div>Remove an active timeout</div></div>
           <div class="method-row"><div><code>member:GiveRole(role_id)</code></div><div>Give the member a role</div></div>
           <div class="method-row"><div><code>member:RemoveRole(role_id)</code></div><div>Remove a role from the member</div></div>
@@ -335,6 +419,37 @@ local member = guild:GetMember(user_id)'>copy</button></div>
           <div class="method-row"><div><code>member:ResetNickname()</code></div><div>Reset to username</div></div>
           <div class="method-row"><div><code>member:SendDM(text)</code></div><div>DM the member</div></div>
           <div class="method-row"><div><code>member:SendDM(text, embed)</code></div><div>DM with an embed</div></div>
+          <div class="method-row"><div><code>member:GetStatus()</code> <span class="badge badge-new">v1.2.0</span></div><div>Returns an <code>Enum.UserStatusInGuild</code> value: checks if banned, timed out, or present</div></div>
+        </div>
+
+        <h3 class="doc-sub" style="margin-top:2rem">Timeout &amp; status with Enum <span class="badge badge-new">v1.2.0</span></h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- Raw seconds still work
+member:Timeout(300, "Spamming")
+
+-- Enum.PunishmentLength values (v1.2.0+)
+member:Timeout(silicord.Enum.PunishmentLength["5Minutes"], "Spamming")
+member:Timeout(silicord.Enum.PunishmentLength["1Hour"])
+member:Timeout(silicord.Enum.PunishmentLength.Permanent, "Repeated violations")
+
+-- Check member status (v1.2.0+)
+local status = member:GetStatus()
+if status == silicord.Enum.UserStatusInGuild.Banned then
+    ctx:Reply("That user is already banned.")
+end'>copy</button></div>
+          <pre><code class="lua"><span class="cmt">-- Raw seconds still work</span>
+member:<span class="fn">Timeout</span>(<span class="num">300</span>, <span class="str">"Spamming"</span>)
+
+<span class="cmt">-- Enum.PunishmentLength values (v1.2.0+)</span>
+member:<span class="fn">Timeout</span>(silicord.Enum.PunishmentLength[<span class="str">"5Minutes"</span>], <span class="str">"Spamming"</span>)
+member:<span class="fn">Timeout</span>(silicord.Enum.PunishmentLength[<span class="str">"1Hour"</span>])
+member:<span class="fn">Timeout</span>(silicord.Enum.PunishmentLength.Permanent, <span class="str">"Repeated violations"</span>)
+
+<span class="cmt">-- Check member status (v1.2.0+)</span>
+<span class="kw">local</span> status = member:<span class="fn">GetStatus</span>()
+<span class="kw">if</span> status == silicord.Enum.UserStatusInGuild.Banned <span class="kw">then</span>
+    ctx:<span class="fn">Reply</span>(<span class="str">"That user is already banned."</span>)
+<span class="kw">end</span></code></pre>
         </div>
 
         <h3 class="doc-sub" style="margin-top:2rem">member properties</h3>
@@ -352,9 +467,7 @@ member.user      <span class="cmt">-- raw Discord user object</span></code></pre
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           GUILD
-      ════════════════════════════════════════════════════════ -->
+      <!-- GUILD -->
       <section class="doc-section" id="guild">
         <div class="doc-section-label">Objects</div>
         <h2 class="doc-section-title">Guild Object</h2>
@@ -368,11 +481,11 @@ member.user      <span class="cmt">-- raw Discord user object</span></code></pre
 
         <div class="method-table" style="margin-top:1.5rem">
           <div class="method-row header"><div>Method</div><div>Description</div></div>
-          <div class="method-row"><div><code>guild:CreateChannel(name, kind, options)</code></div><div>Create a channel</div></div>
+          <div class="method-row"><div><code>guild:CreateChannel(name, kind, options)</code></div><div>Create a channel. <code>kind</code> accepts a string name or <code>Enum.ChannelType</code> value</div></div>
           <div class="method-row"><div><code>guild:EditChannel(channel_id, options)</code></div><div>Edit a channel</div></div>
           <div class="method-row"><div><code>guild:DeleteChannel(channel_id)</code></div><div>Delete a channel</div></div>
-          <div class="method-row"><div><code>guild:CreateRole(name, color, permissions)</code></div><div>Create a role — color accepts hex string, integer, or Color3 object</div></div>
-          <div class="method-row"><div><code>guild:EditRole(role_id, options)</code></div><div>Edit a role — options.color accepts hex, integer, or Color3</div></div>
+          <div class="method-row"><div><code>guild:CreateRole(name, color, permissions)</code></div><div>Create a role. color accepts hex string, integer, or Color3 object</div></div>
+          <div class="method-row"><div><code>guild:EditRole(role_id, options)</code></div><div>Edit a role. options.color accepts hex, integer, or Color3</div></div>
           <div class="method-row"><div><code>guild:DeleteRole(role_id)</code></div><div>Delete a role</div></div>
           <div class="method-row"><div><code>guild:GetMembers(limit)</code></div><div>List of Member objects (max 1000)</div></div>
           <div class="method-row"><div><code>guild:GetMember(user_id)</code></div><div>Single Member by ID</div></div>
@@ -390,7 +503,8 @@ member.user      <span class="cmt">-- raw Discord user object</span></code></pre
 
         <h3 class="doc-sub" style="margin-top:2rem">Channel types</h3>
         <div class="code-block">
-          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='guild:CreateChannel("general",  "text")
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- String names
+guild:CreateChannel("general",  "text")
 guild:CreateChannel("General",  "voice")
 guild:CreateChannel("Info",     "category")
 guild:CreateChannel("news",     "announcement")
@@ -398,14 +512,23 @@ guild:CreateChannel("Stage",    "stage")
 guild:CreateChannel("help",     "forum")
 guild:CreateChannel("media",    "media")
 
+-- Enum.ChannelType values (v1.2.0+)
+guild:CreateChannel("general", silicord.Enum.ChannelType.Text)
+guild:CreateChannel("Music",   silicord.Enum.ChannelType.Voice)
+
 -- With options
 guild:CreateChannel("general", "text", {
     topic     = "General chat",
     parent_id = "category_channel_id",
     nsfw      = false,
     slowmode  = 5
+})
+guild:CreateChannel("Music", "voice", {
+    bitrate    = 64000,
+    user_limit = 10
 })'>copy</button></div>
-          <pre><code class="lua">guild:<span class="fn">CreateChannel</span>(<span class="str">"general"</span>,  <span class="str">"text"</span>)
+          <pre><code class="lua"><span class="cmt">-- String names</span>
+guild:<span class="fn">CreateChannel</span>(<span class="str">"general"</span>,  <span class="str">"text"</span>)
 guild:<span class="fn">CreateChannel</span>(<span class="str">"General"</span>,  <span class="str">"voice"</span>)
 guild:<span class="fn">CreateChannel</span>(<span class="str">"Info"</span>,     <span class="str">"category"</span>)
 guild:<span class="fn">CreateChannel</span>(<span class="str">"news"</span>,     <span class="str">"announcement"</span>)
@@ -413,12 +536,20 @@ guild:<span class="fn">CreateChannel</span>(<span class="str">"Stage"</span>,   
 guild:<span class="fn">CreateChannel</span>(<span class="str">"help"</span>,     <span class="str">"forum"</span>)
 guild:<span class="fn">CreateChannel</span>(<span class="str">"media"</span>,    <span class="str">"media"</span>)
 
+<span class="cmt">-- Enum.ChannelType values (v1.2.0+)</span>
+guild:<span class="fn">CreateChannel</span>(<span class="str">"general"</span>, silicord.Enum.ChannelType.Text)
+guild:<span class="fn">CreateChannel</span>(<span class="str">"Music"</span>,   silicord.Enum.ChannelType.Voice)
+
 <span class="cmt">-- With options</span>
 guild:<span class="fn">CreateChannel</span>(<span class="str">"general"</span>, <span class="str">"text"</span>, {
     topic     = <span class="str">"General chat"</span>,
     parent_id = <span class="str">"category_channel_id"</span>,
     nsfw      = <span class="kw">false</span>,
     slowmode  = <span class="num">5</span>
+})
+guild:<span class="fn">CreateChannel</span>(<span class="str">"Music"</span>, <span class="str">"voice"</span>, {
+    bitrate    = <span class="num">64000</span>,
+    user_limit = <span class="num">10</span>
 })</code></pre>
         </div>
 
@@ -429,35 +560,56 @@ guild:<span class="fn">CreateChannel</span>(<span class="str">"general"</span>, 
     description = "Monthly game night!",
     type       = "external",           -- "stage", "voice", or "external"
     location   = "Discord Stage",      -- for "external" type
-    start_time = "2025-08-01T20:00:00Z",
-    end_time   = "2025-08-01T22:00:00Z"
-})'>copy</button></div>
+    start_time = "2025-09-01T20:00:00Z",
+    end_time   = "2025-09-01T23:00:00Z"
+})
+
+guild:CreateEvent({
+    name       = "Community Call",
+    type       = "stage",
+    channel_id = "stage_channel_id",
+    start_time = "2025-09-01T20:00:00Z",
+    end_time   = "2025-09-01T21:00:00Z"
+})
+
+guild:EditEvent(event_id, { name = "Updated Name" })
+guild:DeleteEvent(event_id)
+local events = guild:GetEvents()'>copy</button></div>
           <pre><code class="lua">guild:<span class="fn">CreateEvent</span>({
     name        = <span class="str">"Game Night"</span>,
     description = <span class="str">"Monthly game night!"</span>,
     type        = <span class="str">"external"</span>,   <span class="cmt">-- "stage", "voice", or "external"</span>
     location    = <span class="str">"Discord Stage"</span>, <span class="cmt">-- for "external" type</span>
-    start_time  = <span class="str">"2025-08-01T20:00:00Z"</span>,
-    end_time    = <span class="str">"2025-08-01T22:00:00Z"</span>
-})</code></pre>
+    start_time  = <span class="str">"2025-09-01T20:00:00Z"</span>,
+    end_time    = <span class="str">"2025-09-01T23:00:00Z"</span>
+})
+
+guild:<span class="fn">CreateEvent</span>({
+    name       = <span class="str">"Community Call"</span>,
+    type       = <span class="str">"stage"</span>,
+    channel_id = <span class="str">"stage_channel_id"</span>,
+    start_time = <span class="str">"2025-09-01T20:00:00Z"</span>,
+    end_time   = <span class="str">"2025-09-01T21:00:00Z"</span>
+})
+
+guild:<span class="fn">EditEvent</span>(event_id, { name = <span class="str">"Updated Name"</span> })
+guild:<span class="fn">DeleteEvent</span>(event_id)
+<span class="kw">local</span> events = guild:<span class="fn">GetEvents</span>()</code></pre>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           EMBEDS
-      ════════════════════════════════════════════════════════ -->
+      <!-- EMBEDS -->
       <section class="doc-section" id="embeds">
         <div class="doc-section-label">Objects</div>
         <h2 class="doc-section-title">Embeds</h2>
 
-        <!-- NEW: Instance.new OOP API -->
         <h3 class="doc-sub">OOP API <span class="badge badge-new">v1.0.0+</span></h3>
-        <p class="doc-p">The preferred way to build embeds in v1.0.0+. Use <code>silicord.Instance.new("Embed")</code> for a clean, chainable builder. Pass a <code>Color3</code> object directly to <code>.Color</code> — no <code>:ToInt()</code> required.</p>
+        <p class="doc-p">The preferred way to build embeds in v1.0.0+. Use <code>silicord.Instance.new("Embed")</code> for a clean, chainable builder. Pass a <code>Color3</code> object directly to <code>.Color</code></p>
         <div class="code-block">
           <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local embed = silicord.Instance.new("Embed")
 embed.Title       = "My Embed"
 embed.Description = "This is the description."
-embed.Color       = silicord.Color3.fromRGB(88, 101, 242)  -- no :ToInt() needed
+embed.Color       = silicord.Color3.fromRGB(88, 101, 242)
 embed.Url         = "https://example.com"
 embed.Timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ")
 embed.Author      = "Author Name"
@@ -468,14 +620,13 @@ embed.FooterIcon  = "https://example.com/icon.png"
 embed.Image       = "https://example.com/image.png"
 embed.Thumbnail   = "https://example.com/thumb.png"
 embed:AddField("Field 1", "Value 1", true)
-embed:AddField("Field 2", "Value 2", true)
-embed:AddField("Field 3", "Value 3", false)
+embed:AddField("Field 2", "Value 2", false)
 
 message:Reply("Here is info:", embed:Build())'>copy</button></div>
           <pre><code class="lua"><span class="kw">local</span> embed = silicord.Instance.<span class="fn">new</span>(<span class="str">"Embed"</span>)
 embed.Title       = <span class="str">"My Embed"</span>
 embed.Description = <span class="str">"This is the description."</span>
-embed.Color       = silicord.Color3.<span class="fn">fromRGB</span>(<span class="num">88</span>, <span class="num">101</span>, <span class="num">242</span>)  <span class="cmt">-- no :ToInt() needed</span>
+embed.Color       = silicord.Color3.<span class="fn">fromRGB</span>(<span class="num">88</span>, <span class="num">101</span>, <span class="num">242</span>)
 embed.Url         = <span class="str">"https://example.com"</span>
 embed.Timestamp   = os.<span class="fn">date</span>(<span class="str">"!%Y-%m-%dT%H:%M:%SZ"</span>)
 embed.Author      = <span class="str">"Author Name"</span>
@@ -486,8 +637,7 @@ embed.FooterIcon  = <span class="str">"https://example.com/icon.png"</span>
 embed.Image       = <span class="str">"https://example.com/image.png"</span>
 embed.Thumbnail   = <span class="str">"https://example.com/thumb.png"</span>
 embed:<span class="fn">AddField</span>(<span class="str">"Field 1"</span>, <span class="str">"Value 1"</span>, <span class="kw">true</span>)
-embed:<span class="fn">AddField</span>(<span class="str">"Field 2"</span>, <span class="str">"Value 2"</span>, <span class="kw">true</span>)
-embed:<span class="fn">AddField</span>(<span class="str">"Field 3"</span>, <span class="str">"Value 3"</span>, <span class="kw">false</span>)
+embed:<span class="fn">AddField</span>(<span class="str">"Field 2"</span>, <span class="str">"Value 2"</span>, <span class="kw">false</span>)
 
 message:<span class="fn">Reply</span>(<span class="str">"Here is info:"</span>, embed:<span class="fn">Build</span>())</code></pre>
         </div>
@@ -506,7 +656,6 @@ message:<span class="fn">Reply</span>(<span class="str">"Here is info:"</span>, 
           <div class="method-row"><div><code>embed:Build()</code></div><div>Returns the final table to pass to <code>:Reply()</code> etc.</div></div>
         </div>
 
-        <!-- DEPRECATED: table syntax -->
         <h3 class="doc-sub" style="margin-top:2.5rem">Table syntax <span class="badge badge-deprecated">deprecated</span></h3>
         <div class="deprecated-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -517,64 +666,48 @@ message:<span class="fn">Reply</span>(<span class="str">"Here is info:"</span>, 
 local embed = silicord.Embed({
     title       = "My Embed",
     description = "This is the description.",
-    color       = "#5865F2",
-    fields = {
-        { name = "Field 1", value = "Value 1", inline = true },
-    }
+    color       = "#5865F2"
 })
 message:Reply(embed)'>copy</button></div>
           <pre><code class="lua"><span class="cmt">-- ⚠ DEPRECATED — use silicord.Instance.new("Embed") instead</span>
 <span class="kw">local</span> embed = silicord.<span class="fn">Embed</span>({
     title       = <span class="str">"My Embed"</span>,
     description = <span class="str">"This is the description."</span>,
-    color       = <span class="str">"#5865F2"</span>,
-    fields = {
-        { name = <span class="str">"Field 1"</span>, value = <span class="str">"Value 1"</span>, inline = <span class="kw">true</span> },
-    }
+    color       = <span class="str">"#5865F2"</span>
 })
 message:<span class="fn">Reply</span>(embed)</code></pre>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           COLOR3
-      ════════════════════════════════════════════════════════ -->
+      <!-- COLOR3 -->
       <section class="doc-section" id="color3">
         <div class="doc-section-label">Objects</div>
         <h2 class="doc-section-title">Color3</h2>
-        <p class="doc-p">A Roblox-style color class. In v1.0.0+, <code>Color3</code> objects can be passed directly to any <code>.Color</code> / <code>color</code> field — you no longer need to call <code>:ToInt()</code> yourself.</p>
+        <p class="doc-p">A Roblox-style color class. In v1.0.0+, <code>Color3</code> objects can be passed directly to any <code>.Color</code> / <code>color</code> field.</p>
 
         <div class="code-block">
-          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- Create from RGB values (0–255)
-local c = silicord.Color3.fromRGB(88, 101, 242)
-
--- Create from a hex string
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local c = silicord.Color3.fromRGB(88, 101, 242)
 local c = silicord.Color3.fromHex("#5865F2")
 
--- Use directly in an embed (v1.0.0+, no :ToInt() needed)
-local embed = silicord.Instance.new("Embed")
-embed.Color = silicord.Color3.fromHex("#57F287")  -- just assign it
+-- Pass directly to any color field (v1.0.0+)
+embed.Color = silicord.Color3.fromHex("#57F287")
 
 -- Use in guild:CreateRole
 guild:CreateRole("Moderator", silicord.Color3.fromRGB(255, 165, 0))
 
--- Still works: get the raw integer
-local int = c:ToInt()   -- 5793522'>copy</button></div>
-          <pre><code class="lua"><span class="cmt">-- Create from RGB values (0–255)</span>
-<span class="kw">local</span> c = silicord.Color3.<span class="fn">fromRGB</span>(<span class="num">88</span>, <span class="num">101</span>, <span class="num">242</span>)
-
-<span class="cmt">-- Create from a hex string</span>
+-- Get the raw integer (rarely needed)
+local int = c:ToInt()'>copy</button></div>
+          <pre><code class="lua"><span class="kw">local</span> c = silicord.Color3.<span class="fn">fromRGB</span>(<span class="num">88</span>, <span class="num">101</span>, <span class="num">242</span>)
 <span class="kw">local</span> c = silicord.Color3.<span class="fn">fromHex</span>(<span class="str">"#5865F2"</span>)
 
-<span class="cmt">-- Use directly in an embed (v1.0.0+, no :ToInt() needed)</span>
-<span class="kw">local</span> embed = silicord.Instance.<span class="fn">new</span>(<span class="str">"Embed"</span>)
+<span class="cmt">-- Pass directly to any color field (v1.0.0+)</span>
 embed.Color = silicord.Color3.<span class="fn">fromHex</span>(<span class="str">"#57F287"</span>)
 
 <span class="cmt">-- Use in guild:CreateRole</span>
 guild:<span class="fn">CreateRole</span>(<span class="str">"Moderator"</span>, silicord.Color3.<span class="fn">fromRGB</span>(<span class="num">255</span>, <span class="num">165</span>, <span class="num">0</span>))
 
-<span class="cmt">-- Still works: get the raw integer</span>
-<span class="kw">local</span> int = c:<span class="fn">ToInt</span>()   <span class="cmt">-- 5793522</span></code></pre>
+<span class="cmt">-- Get the raw integer (rarely needed)</span>
+<span class="kw">local</span> int = c:<span class="fn">ToInt</span>()</code></pre>
         </div>
 
         <div class="method-table" style="margin-top:1rem">
@@ -584,21 +717,13 @@ guild:<span class="fn">CreateRole</span>(<span class="str">"Moderator"</span>, s
           <div class="method-row"><div><code>color.r / .g / .b</code></div><div>Individual channel values (0–255)</div></div>
           <div class="method-row"><div><code>color:ToInt()</code></div><div>Returns the packed 24-bit integer (still available, rarely needed)</div></div>
         </div>
-
-        <div class="new-box" style="margin-top:1rem">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <div><strong>v1.0.0+:</strong> All color fields in silicord (Embed, <code>guild:CreateRole</code>, <code>guild:EditRole</code>) now call an internal <code>resolve_color()</code> helper that automatically handles <code>Color3</code> objects, hex strings, and raw integers. You never need <code>:ToInt()</code> in normal usage.</div>
-        </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           COMPONENTS
-      ════════════════════════════════════════════════════════ -->
+      <!-- COMPONENTS -->
       <section class="doc-section" id="components">
         <div class="doc-section-label">Components</div>
         <h2 class="doc-section-title">Buttons &amp; Select Menus</h2>
 
-        <!-- NEW: OOP API -->
         <h3 class="doc-sub">OOP API <span class="badge badge-new">v1.0.0+</span></h3>
         <p class="doc-p">Use <code>silicord.Instance.new()</code> to build components and action rows with a chainable, object-oriented style.</p>
 
@@ -654,7 +779,7 @@ client:<span class="fn">CreateComponent</span>(<span class="str">"vote_yes"</spa
           <div class="method-row"><div><code>button.Style</code></div><div><code>"primary"</code>, <code>"secondary"</code>, <code>"success"</code>, <code>"danger"</code>, <code>"link"</code></div></div>
           <div class="method-row"><div><code>button.CustomId</code></div><div>ID matched by <code>client:CreateComponent()</code></div></div>
           <div class="method-row"><div><code>button.Url</code></div><div>URL for <code>"link"</code>-style buttons</div></div>
-          <div class="method-row"><div><code>button.Emoji</code></div><div>Emoji name string (e.g. <code>"👍"</code>)</div></div>
+          <div class="method-row"><div><code>button.Emoji</code></div><div>Emoji string (e.g. <code>"👍"</code>)</div></div>
           <div class="method-row"><div><code>button.Disabled</code></div><div><code>true</code> to disable the button (default: <code>false</code>)</div></div>
           <div class="method-row"><div><code>button:Build()</code></div><div>Returns the raw component table</div></div>
         </div>
@@ -708,16 +833,17 @@ client:<span class="fn">CreateComponent</span>(<span class="str">"color_pick"</s
           <div class="method-row"><div><code>menu:Build()</code></div><div>Returns the raw component table</div></div>
         </div>
 
-        <!-- DEPRECATED legacy helpers -->
         <h3 class="doc-sub" style="margin-top:2.5rem">Legacy table syntax <span class="badge badge-deprecated">deprecated</span></h3>
         <div class="deprecated-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           <div>
             <strong>Deprecated since v1.0.0.</strong> The following helpers still work but emit a yellow runtime warning and will be removed in a future major version. Migrate to the OOP API above.
             <ul style="margin:0.5rem 0 0 1rem; padding:0; list-style:disc;">
+              <li><code>silicord.Embed({ ... })</code> → <code>silicord.Instance.new("Embed")</code></li>
               <li><code>silicord.Button({ ... })</code> → <code>silicord.Instance.new("Button")</code></li>
               <li><code>silicord.SelectMenu({ ... })</code> → <code>silicord.Instance.new("SelectMenu")</code></li>
               <li><code>silicord.ActionRow(...)</code> → <code>silicord.Instance.new("ActionRow")</code></li>
+              <li><code>silicord.DataStore("name")</code> → <code>silicord:GetService("DataStoreService"):GetDataStore("name")</code></li>
             </ul>
           </div>
         </div>
@@ -735,61 +861,412 @@ local row = silicord.ActionRow(
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           DATASTORE
-      ════════════════════════════════════════════════════════ -->
-      <section class="doc-section" id="datastore">
-        <div class="doc-section-label">Advanced</div>
-        <h2 class="doc-section-title">DataStore</h2>
-        <p class="doc-p">JSON file-based persistence. Each store maps to a <code>&lt;name&gt;.datastore.json</code> file on disk. Stores are cached in memory after the first load — calling <code>silicord.DataStore("name")</code> twice returns the same instance.</p>
-
-        <div class="new-box">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <div><strong>v1.0.0 safety improvements:</strong>
-            <ul style="margin:0.5rem 0 0 1rem; padding:0; list-style:disc;">
-              <li>Empty or missing JSON files start as a fresh store instead of crashing.</li>
-              <li>Corrupt JSON is automatically backed up to <code>name.datastore.json.corrupted_&lt;timestamp&gt;</code> and the store resets.</li>
-              <li>All writes use an atomic temp-file swap — a crash mid-write can never corrupt your data.</li>
-              <li><code>IncrementAsync</code> resets non-numeric values to <code>0</code> with a warning instead of throwing an error.</li>
-            </ul>
-          </div>
-        </div>
+      <!-- GETSERVICE -->
+      <section class="doc-section" id="getservice">
+        <div class="doc-section-label">Services</div>
+        <h2 class="doc-section-title">GetService <span class="badge badge-new">v1.2.0</span></h2>
+        <p class="doc-p">silicord uses a service system inspired by Roblox's <code>game:GetService()</code>. Services are <strong>lazy-loaded</strong> so they are only created the first time you call <code>GetService</code>, saving memory.</p>
 
         <div class="code-block">
-          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local db = silicord.DataStore("PlayerData")
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local DS       = silicord:GetService("DataStoreService")
+local Http     = silicord:GetService("HttpService")
+local Presence = silicord:GetService("PresenceService")
+local AI       = silicord:GetService("AIService")'>copy</button></div>
+          <pre><code class="lua"><span class="kw">local</span> DS       = silicord:<span class="fn">GetService</span>(<span class="str">"DataStoreService"</span>)
+<span class="kw">local</span> Http     = silicord:<span class="fn">GetService</span>(<span class="str">"HttpService"</span>)
+<span class="kw">local</span> Presence = silicord:<span class="fn">GetService</span>(<span class="str">"PresenceService"</span>)
+<span class="kw">local</span> AI       = silicord:<span class="fn">GetService</span>(<span class="str">"AIService"</span>)</code></pre>
+        </div>
 
--- Write a value
+        <div class="method-table" style="margin-top:1rem">
+          <div class="method-row header"><div>Service name</div><div>Description</div></div>
+          <div class="method-row"><div><code>"DataStoreService"</code></div><div>JSON file-based key-value persistence</div></div>
+          <div class="method-row"><div><code>"HttpService"</code></div><div>Make outbound HTTP/HTTPS requests</div></div>
+          <div class="method-row"><div><code>"PresenceService"</code></div><div>Set the bot's presence, status text, and activity</div></div>
+          <div class="method-row"><div><code>"AIService"</code></div><div>Connect an external OpenAI-compatible AI API</div></div>
+        </div>
+      </section>
+
+      <!-- ENUM -->
+      <section class="doc-section" id="enum">
+        <div class="doc-section-label">Services</div>
+        <h2 class="doc-section-title">Enum <span class="badge badge-new">v1.2.0</span></h2>
+        <p class="doc-p">Roblox-style enums for type-safe values throughout your bot.</p>
+
+        <h3 class="doc-sub">Enum.Presence</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='silicord.Enum.Presence.Online        -- "online"
+silicord.Enum.Presence.Idle          -- "idle"
+silicord.Enum.Presence.DoNotDisturb  -- "dnd"
+silicord.Enum.Presence.Invisible     -- "invisible"'>copy</button></div>
+          <pre><code class="lua">silicord.Enum.Presence.Online        <span class="cmt">-- "online"</span>
+silicord.Enum.Presence.Idle          <span class="cmt">-- "idle"</span>
+silicord.Enum.Presence.DoNotDisturb  <span class="cmt">-- "dnd"</span>
+silicord.Enum.Presence.Invisible     <span class="cmt">-- "invisible"</span></code></pre>
+        </div>
+
+        <h3 class="doc-sub" style="margin-top:2rem">Enum.ChannelType</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='silicord.Enum.ChannelType.Text         -- 0
+silicord.Enum.ChannelType.DM           -- 1
+silicord.Enum.ChannelType.Voice        -- 2
+silicord.Enum.ChannelType.GDM          -- 3
+silicord.Enum.ChannelType.Category     -- 4
+silicord.Enum.ChannelType.Announcement -- 5
+silicord.Enum.ChannelType.Thread       -- 11
+silicord.Enum.ChannelType.Stage        -- 13
+silicord.Enum.ChannelType.Forum        -- 15
+silicord.Enum.ChannelType.Media        -- 16
+
+-- Pass directly to guild:CreateChannel()
+guild:CreateChannel("general", silicord.Enum.ChannelType.Text)
+guild:CreateChannel("Music",   silicord.Enum.ChannelType.Voice)'>copy</button></div>
+          <pre><code class="lua">silicord.Enum.ChannelType.Text         <span class="cmt">-- 0</span>
+silicord.Enum.ChannelType.DM           <span class="cmt">-- 1</span>
+silicord.Enum.ChannelType.Voice        <span class="cmt">-- 2</span>
+silicord.Enum.ChannelType.GDM          <span class="cmt">-- 3</span>
+silicord.Enum.ChannelType.Category     <span class="cmt">-- 4</span>
+silicord.Enum.ChannelType.Announcement <span class="cmt">-- 5</span>
+silicord.Enum.ChannelType.Thread       <span class="cmt">-- 11</span>
+silicord.Enum.ChannelType.Stage        <span class="cmt">-- 13</span>
+silicord.Enum.ChannelType.Forum        <span class="cmt">-- 15</span>
+silicord.Enum.ChannelType.Media        <span class="cmt">-- 16</span>
+
+<span class="cmt">-- Pass directly to guild:CreateChannel()</span>
+guild:<span class="fn">CreateChannel</span>(<span class="str">"general"</span>, silicord.Enum.ChannelType.Text)
+guild:<span class="fn">CreateChannel</span>(<span class="str">"Music"</span>,   silicord.Enum.ChannelType.Voice)</code></pre>
+        </div>
+
+        <h3 class="doc-sub" style="margin-top:2rem">Enum.Permissions</h3>
+        <p class="doc-p">Permission bit values for role creation and checks. 26 permissions total.</p>
+        <div class="code-block">
+          <div class="code-header">
+  <span class="code-lang">lua</span>
+  <button class="copy-code" data-code='silicord.Enum.Permissions.CreateInstantInvite  -- 0x1
+silicord.Enum.Permissions.KickMembers          -- 0x2
+silicord.Enum.Permissions.BanMembers           -- 0x4
+silicord.Enum.Permissions.Administrator        -- 0x8
+silicord.Enum.Permissions.ManageChannels       -- 0x10
+silicord.Enum.Permissions.ManageGuild          -- 0x20
+silicord.Enum.Permissions.AddReactions         -- 0x40
+silicord.Enum.Permissions.ViewAuditLog         -- 0x80
+silicord.Enum.Permissions.PrioritySpeaker      -- 0x100
+silicord.Enum.Permissions.Stream               -- 0x200
+silicord.Enum.Permissions.ReadMessages         -- 0x400
+silicord.Enum.Permissions.ViewChannel          -- 0x400
+silicord.Enum.Permissions.SendMessages         -- 0x800
+silicord.Enum.Permissions.SendTTSMessages      -- 0x1000
+silicord.Enum.Permissions.ManageMessages       -- 0x2000
+silicord.Enum.Permissions.EmbedLinks           -- 0x4000
+silicord.Enum.Permissions.AttachFiles          -- 0x8000
+silicord.Enum.Permissions.ReadMessageHistory   -- 0x10000
+silicord.Enum.Permissions.MentionEveryone      -- 0x20000
+silicord.Enum.Permissions.UseExternalEmojis    -- 0x40000
+silicord.Enum.Permissions.ViewGuildInsights    -- 0x80000
+silicord.Enum.Permissions.Connect              -- 0x100000
+silicord.Enum.Permissions.Speak                -- 0x200000
+silicord.Enum.Permissions.MuteMembers          -- 0x400000
+silicord.Enum.Permissions.DeafenMembers        -- 0x800000
+silicord.Enum.Permissions.MoveMembers          -- 0x1000000
+silicord.Enum.Permissions.UseVAD               -- 0x2000000
+silicord.Enum.Permissions.ChangeNickname       -- 0x4000000
+silicord.Enum.Permissions.ManageNicknames      -- 0x8000000
+silicord.Enum.Permissions.ManageRoles          -- 0x10000000
+silicord.Enum.Permissions.ManageWebhooks       -- 0x20000000
+silicord.Enum.Permissions.ManageExpressions    -- 0x40000000
+
+-- Example: Create a role with a specific permission
+guild:CreateRole("Admin", silicord.Color3.fromRGB(255, 0, 0), silicord.Enum.Permissions.Administrator)'>copy</button>
+</div>
+<pre><code class="lua">silicord.Enum.Permissions.CreateInstantInvite  <span class="cmt">-- 0x1</span>
+silicord.Enum.Permissions.KickMembers          <span class="cmt">-- 0x2</span>
+silicord.Enum.Permissions.BanMembers           <span class="cmt">-- 0x4</span>
+silicord.Enum.Permissions.Administrator        <span class="cmt">-- 0x8</span>
+silicord.Enum.Permissions.ManageChannels       <span class="cmt">-- 0x10</span>
+silicord.Enum.Permissions.ManageGuild          <span class="cmt">-- 0x20</span>
+silicord.Enum.Permissions.AddReactions         <span class="cmt">-- 0x40</span>
+silicord.Enum.Permissions.ViewAuditLog         <span class="cmt">-- 0x80</span>
+silicord.Enum.Permissions.PrioritySpeaker      <span class="cmt">-- 0x100</span>
+silicord.Enum.Permissions.Stream               <span class="cmt">-- 0x200</span>
+silicord.Enum.Permissions.ReadMessages         <span class="cmt">-- 0x400</span>
+silicord.Enum.Permissions.ViewChannel          <span class="cmt">-- 0x400</span>
+silicord.Enum.Permissions.SendMessages         <span class="cmt">-- 0x800</span>
+silicord.Enum.Permissions.SendTTSMessages      <span class="cmt">-- 0x1000</span>
+silicord.Enum.Permissions.ManageMessages       <span class="cmt">-- 0x2000</span>
+silicord.Enum.Permissions.EmbedLinks           <span class="cmt">-- 0x4000</span>
+silicord.Enum.Permissions.AttachFiles          <span class="cmt">-- 0x8000</span>
+silicord.Enum.Permissions.ReadMessageHistory   <span class="cmt">-- 0x10000</span>
+silicord.Enum.Permissions.MentionEveryone      <span class="cmt">-- 0x20000</span>
+silicord.Enum.Permissions.UseExternalEmojis    <span class="cmt">-- 0x40000</span>
+silicord.Enum.Permissions.ViewGuildInsights    <span class="cmt">-- 0x80000</span>
+silicord.Enum.Permissions.Connect              <span class="cmt">-- 0x100000</span>
+silicord.Enum.Permissions.Speak                <span class="cmt">-- 0x200000</span>
+silicord.Enum.Permissions.MuteMembers          <span class="cmt">-- 0x400000</span>
+silicord.Enum.Permissions.DeafenMembers        <span class="cmt">-- 0x800000</span>
+silicord.Enum.Permissions.MoveMembers          <span class="cmt">-- 0x1000000</span>
+silicord.Enum.Permissions.UseVAD               <span class="cmt">-- 0x2000000</span>
+silicord.Enum.Permissions.ChangeNickname       <span class="cmt">-- 0x4000000</span>
+silicord.Enum.Permissions.ManageNicknames      <span class="cmt">-- 0x8000000</span>
+silicord.Enum.Permissions.ManageRoles          <span class="cmt">-- 0x10000000</span>
+silicord.Enum.Permissions.ManageWebhooks       <span class="cmt">-- 0x20000000</span>
+silicord.Enum.Permissions.ManageExpressions    <span class="cmt">-- 0x40000000</span></code></pre>
+<span class="cmt">-- Create a role with a specific permission</span>
+guild:<span class="fn">CreateRole</span>(<span class="str">"Admin"</span>, silicord.Color3.<span class="fn">fromRGB</span>(<span class="num">255</span>, <span class="num">0</span>, <span class="num">0</span>), silicord.Enum.Permissions.Administrator)</code></pre>
+        </div>
+
+        <h3 class="doc-sub" style="margin-top:2rem">Enum.PunishmentLength</h3>
+        <p class="doc-p">Pre-defined timeout durations in seconds. Pass directly to <code>member:Timeout()</code>.</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='silicord.Enum.PunishmentLength["1Minute"]   -- 60
+silicord.Enum.PunishmentLength["5Minutes"]  -- 300
+silicord.Enum.PunishmentLength["10Minutes"] -- 600
+silicord.Enum.PunishmentLength["30Minutes"] -- 1800
+silicord.Enum.PunishmentLength["1Hour"]     -- 3600
+silicord.Enum.PunishmentLength["6Hours"]    -- 21600
+silicord.Enum.PunishmentLength["12Hours"]   -- 43200
+silicord.Enum.PunishmentLength["1Day"]      -- 86400
+silicord.Enum.PunishmentLength["3Days"]     -- 259200
+silicord.Enum.PunishmentLength["1Week"]     -- 604800
+silicord.Enum.PunishmentLength.Permanent    -- nil (no end date)
+
+member:Timeout(silicord.Enum.PunishmentLength["30Minutes"], "Spamming")
+member:Timeout(silicord.Enum.PunishmentLength.Permanent,    "Repeated violations")'>copy</button></div>
+          <pre><code class="lua">silicord.Enum.PunishmentLength[<span class="str">"1Minute"</span>]   <span class="cmt">-- 60</span>
+silicord.Enum.PunishmentLength[<span class="str">"5Minutes"</span>]  <span class="cmt">-- 300</span>
+silicord.Enum.PunishmentLength[<span class="str">"10Minutes"</span>] <span class="cmt">-- 600</span>
+silicord.Enum.PunishmentLength[<span class="str">"30Minutes"</span>] <span class="cmt">-- 1800</span>
+silicord.Enum.PunishmentLength[<span class="str">"1Hour"</span>]     <span class="cmt">-- 3600</span>
+silicord.Enum.PunishmentLength[<span class="str">"6Hours"</span>]    <span class="cmt">-- 21600</span>
+silicord.Enum.PunishmentLength[<span class="str">"12Hours"</span>]   <span class="cmt">-- 43200</span>
+silicord.Enum.PunishmentLength[<span class="str">"1Day"</span>]      <span class="cmt">-- 86400</span>
+silicord.Enum.PunishmentLength[<span class="str">"3Days"</span>]     <span class="cmt">-- 259200</span>
+silicord.Enum.PunishmentLength[<span class="str">"1Week"</span>]     <span class="cmt">-- 604800</span>
+silicord.Enum.PunishmentLength.Permanent    <span class="cmt">-- nil (no end date)</span>
+
+member:<span class="fn">Timeout</span>(silicord.Enum.PunishmentLength[<span class="str">"30Minutes"</span>], <span class="str">"Spamming"</span>)
+member:<span class="fn">Timeout</span>(silicord.Enum.PunishmentLength.Permanent,    <span class="str">"Repeated violations"</span>)</code></pre>
+        </div>
+
+        <h3 class="doc-sub" style="margin-top:2rem">Enum.UserStatusInGuild</h3>
+        <p class="doc-p">Returned by <code>member:GetStatus()</code>.</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='silicord.Enum.UserStatusInGuild.None     -- "none"
+silicord.Enum.UserStatusInGuild.TimedOut -- "timed_out"
+silicord.Enum.UserStatusInGuild.Kicked   -- "kicked"
+silicord.Enum.UserStatusInGuild.Banned   -- "banned"'>copy</button></div>
+          <pre><code class="lua">silicord.Enum.UserStatusInGuild.None     <span class="cmt">-- "none"</span>
+silicord.Enum.UserStatusInGuild.TimedOut <span class="cmt">-- "timed_out"</span>
+silicord.Enum.UserStatusInGuild.Kicked   <span class="cmt">-- "kicked"</span>
+silicord.Enum.UserStatusInGuild.Banned   <span class="cmt">-- "banned"</span></code></pre>
+        </div>
+      </section>
+
+      <!-- DATASTORESERVICE -->
+      <section class="doc-section" id="datastoreservice">
+        <div class="doc-section-label">Services</div>
+        <h2 class="doc-section-title">DataStoreService <span class="badge badge-new">v1.2.0</span></h2>
+        <p class="doc-p">JSON file-based key-value persistence. Each store saves to a <code>&lt;name&gt;.datastore.json</code> file. Calling <code>GetDataStore("name")</code> twice returns the same cached instance.</p>
+
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local DS = silicord:GetService("DataStoreService")
+local db = DS:GetDataStore("PlayerData")
+
 db:SetAsync("score_user123", 500)
 
--- Read a value (returns nil if not set)
 local score = db:GetAsync("score_user123")
 
--- Increment a numeric value (safe in v1.0.0+)
 local new_score = db:IncrementAsync("score_user123", 10)
 
--- Remove a value
 db:RemoveAsync("score_user123")
 
--- List all keys in the store
 local keys = db:GetKeys()
 for _, k in ipairs(keys) do
     print(k, db:GetAsync(k))
 end'>copy</button></div>
-          <pre><code class="lua"><span class="kw">local</span> db = silicord.<span class="fn">DataStore</span>(<span class="str">"PlayerData"</span>)
+          <pre><code class="lua"><span class="kw">local</span> DS = silicord:<span class="fn">GetService</span>(<span class="str">"DataStoreService"</span>)
+<span class="kw">local</span> db = DS:<span class="fn">GetDataStore</span>(<span class="str">"PlayerData"</span>)
 
-<span class="cmt">-- Write a value</span>
 db:<span class="fn">SetAsync</span>(<span class="str">"score_user123"</span>, <span class="num">500</span>)
 
-<span class="cmt">-- Read a value (returns nil if not set)</span>
 <span class="kw">local</span> score = db:<span class="fn">GetAsync</span>(<span class="str">"score_user123"</span>)
 
-<span class="cmt">-- Increment a numeric value (safe in v1.0.0+)</span>
 <span class="kw">local</span> new_score = db:<span class="fn">IncrementAsync</span>(<span class="str">"score_user123"</span>, <span class="num">10</span>)
 
-<span class="cmt">-- Remove a value</span>
 db:<span class="fn">RemoveAsync</span>(<span class="str">"score_user123"</span>)
 
-<span class="cmt">-- List all keys</span>
+<span class="kw">local</span> keys = db:<span class="fn">GetKeys</span>()
+<span class="kw">for</span> _, k <span class="kw">in</span> <span class="fn">ipairs</span>(keys) <span class="kw">do</span>
+    <span class="fn">print</span>(k, db:<span class="fn">GetAsync</span>(k))
+<span class="kw">end</span></code></pre>
+        </div>
+
+        <div class="new-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div><strong>Safety features:</strong> Empty or missing files start as a fresh store instead of crashing. Corrupt JSON is automatically backed up to <code>name.datastore.json.corrupted_&lt;timestamp&gt;</code> and the store resets. All writes use an atomic temp-file swap — a crash mid-write cannot corrupt your data. <code>IncrementAsync</code> resets non-numeric values to <code>0</code> with a warning instead of throwing.</div>
+        </div>
+
+        <div class="method-table" style="margin-top:1rem">
+          <div class="method-row header"><div>Method</div><div>Description</div></div>
+          <div class="method-row"><div><code>store:SetAsync(key, value)</code></div><div>Write any JSON-serializable value</div></div>
+          <div class="method-row"><div><code>store:GetAsync(key)</code></div><div>Read a value; returns <code>nil</code> if missing</div></div>
+          <div class="method-row"><div><code>store:RemoveAsync(key)</code></div><div>Delete a key</div></div>
+          <div class="method-row"><div><code>store:IncrementAsync(key, delta)</code></div><div>Add <code>delta</code> to a numeric key (default <code>+1</code>)</div></div>
+          <div class="method-row"><div><code>store:GetKeys()</code></div><div>Returns a table of all keys in the store</div></div>
+        </div>
+      </section>
+
+      <!-- HTTPSERVICE -->
+      <section class="doc-section" id="httpservice">
+        <div class="doc-section-label">Services</div>
+        <h2 class="doc-section-title">HttpService <span class="badge badge-new">v1.2.0</span></h2>
+        <p class="doc-p">Make outbound HTTP/HTTPS requests from your bot.</p>
+
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local Http = silicord:GetService("HttpService")
+
+-- GET request
+local body, code = Http:Get("https://api.example.com/data")
+
+-- POST request
+local body, code = Http:Post("https://api.example.com/submit", '"'"'{"key":"value"}'"'"')
+
+-- Full control
+local body, code = Http:Request("https://api.example.com", "PATCH", '"'"'{"x":1}'"'"', {
+    ["X-Custom-Header"] = "abc"
+})'>copy</button></div>
+          <pre><code class="lua"><span class="kw">local</span> Http = silicord:<span class="fn">GetService</span>(<span class="str">"HttpService"</span>)
+
+<span class="cmt">-- GET request</span>
+<span class="kw">local</span> body, code = Http:<span class="fn">Get</span>(<span class="str">"https://api.example.com/data"</span>)
+
+<span class="cmt">-- POST request</span>
+<span class="kw">local</span> body, code = Http:<span class="fn">Post</span>(<span class="str">"https://api.example.com/submit"</span>, <span class="str">'{"key":"value"}'</span>)
+
+<span class="cmt">-- Full control</span>
+<span class="kw">local</span> body, code = Http:<span class="fn">Request</span>(<span class="str">"https://api.example.com"</span>, <span class="str">"PATCH"</span>, <span class="str">'{"x":1}'</span>, {
+    [<span class="str">"X-Custom-Header"</span>] = <span class="str">"abc"</span>
+})</code></pre>
+        </div>
+
+        <div class="method-table" style="margin-top:1rem">
+          <div class="method-row header"><div>Method</div><div>Description</div></div>
+          <div class="method-row"><div><code>Http:Get(url, headers?)</code></div><div>GET request; returns <code>body, status_code</code></div></div>
+          <div class="method-row"><div><code>Http:Post(url, body, headers?)</code></div><div>POST request; returns <code>body, status_code</code></div></div>
+          <div class="method-row"><div><code>Http:Request(url, method, body?, headers?)</code></div><div>Full request with any HTTP method</div></div>
+        </div>
+      </section>
+
+      <!-- PRESENCESERVICE -->
+      <section class="doc-section" id="presenceservice">
+        <div class="doc-section-label">Services</div>
+        <h2 class="doc-section-title">PresenceService <span class="badge badge-new">v1.2.0</span></h2>
+        <p class="doc-p">Set the bot's presence and activity text. Requires <code>app_id</code> in your <code>Connect</code> config.</p>
+
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local Presence = silicord:GetService("PresenceService")
+
+Presence:SetPresence(client, {
+    presence = silicord.Enum.Presence.Online,  -- Enum.Presence value
+    status   = "Watching over the server!",     -- text shown under the bot name
+    type     = 3                                -- 0=Playing, 1=Streaming, 2=Listening, 3=Watching, 5=Competing
+})'>copy</button></div>
+          <pre><code class="lua"><span class="kw">local</span> Presence = silicord:<span class="fn">GetService</span>(<span class="str">"PresenceService"</span>)
+
+Presence:<span class="fn">SetPresence</span>(client, {
+    presence = silicord.Enum.Presence.Online,  <span class="cmt">-- Enum.Presence value</span>
+    status   = <span class="str">"Watching over the server!"</span>,   <span class="cmt">-- text shown under the bot name</span>
+    type     = <span class="num">3</span>                               <span class="cmt">-- 0=Playing, 1=Streaming, 2=Listening, 3=Watching, 5=Competing</span>
+})</code></pre>
+        </div>
+
+        <div class="method-table" style="margin-top:1rem">
+          <div class="method-row header"><div>Option</div><div>Description</div></div>
+          <div class="method-row"><div><code>presence</code></div><div><code>Enum.Presence</code> value — status indicator (default: <code>Online</code>)</div></div>
+          <div class="method-row"><div><code>status</code></div><div>Activity text displayed under the bot's name</div></div>
+          <div class="method-row"><div><code>type</code></div><div>Activity type: <code>0</code>=Playing, <code>1</code>=Streaming, <code>2</code>=Listening, <code>3</code>=Watching, <code>5</code>=Competing (default: <code>0</code>)</div></div>
+        </div>
+      </section>
+
+      <!-- AISERVICE -->
+      <section class="doc-section" id="aiservice">
+        <div class="doc-section-label">Services</div>
+        <h2 class="doc-section-title">AIService <span class="badge badge-new">v1.2.0 [BETA]</span></h2>
+        <p class="doc-p">Connect an OpenAI-compatible AI to your bot. Works with OpenAI, Groq, and any provider using the <code>/v1/chat/completions</code> endpoint. <strong>THIS IS HEAVILY IN BETA TESTING.</strong></p>
+
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local AI = silicord:GetService("AIService")
+
+AI:Configure("sk-your-api-key-here", {
+    model    = "gpt-4o",                    -- default: "gpt-3.5-turbo"
+    base_url = "https://api.openai.com/v1"  -- change for other providers
+})
+
+client:CreateSlashCommand("ask", {
+    description = "Ask the AI a question",
+    options = {
+        { name = "question", description = "Your question", type = "string", required = true }
+    }
+}, function(interaction, args)
+    local reply = AI:Prompt(args.question, "You are a helpful Discord bot assistant.")
+    interaction:Reply(reply or "Sorry, I could not get a response.")
+end)'>copy</button></div>
+          <pre><code class="lua"><span class="kw">local</span> AI = silicord:<span class="fn">GetService</span>(<span class="str">"AIService"</span>)
+
+AI:<span class="fn">Configure</span>(<span class="str">"sk-your-api-key-here"</span>, {
+    model    = <span class="str">"gpt-4o"</span>,                   <span class="cmt">-- default: "gpt-3.5-turbo"</span>
+    base_url = <span class="str">"https://api.openai.com/v1"</span>  <span class="cmt">-- change for other providers</span>
+})
+
+client:<span class="fn">CreateSlashCommand</span>(<span class="str">"ask"</span>, {
+    description = <span class="str">"Ask the AI a question"</span>,
+    options = {
+        { name = <span class="str">"question"</span>, description = <span class="str">"Your question"</span>, type = <span class="str">"string"</span>, required = <span class="kw">true</span> }
+    }
+}, <span class="kw">function</span>(interaction, args)
+    <span class="kw">local</span> reply = AI:<span class="fn">Prompt</span>(args.question, <span class="str">"You are a helpful Discord bot assistant."</span>)
+    interaction:<span class="fn">Reply</span>(reply <span class="kw">or</span> <span class="str">"Sorry, I could not get a response."</span>)
+<span class="kw">end</span>)</code></pre>
+        </div>
+
+        <div class="method-table" style="margin-top:1rem">
+          <div class="method-row header"><div>Method</div><div>Description</div></div>
+          <div class="method-row"><div><code>AI:Configure(api_key, options?)</code></div><div>Set your API key; optionally override <code>model</code> and <code>base_url</code></div></div>
+          <div class="method-row"><div><code>AI:Prompt(prompt, system?)</code></div><div>Send a prompt; returns the response string (or <code>nil, error</code> on failure)</div></div>
+        </div>
+      </section>
+
+      <!-- DATASTORE (deprecated) -->
+      <section class="doc-section" id="datastore">
+        <div class="doc-section-label">Advanced</div>
+        <h2 class="doc-section-title">DataStore <span class="badge badge-deprecated">deprecated</span></h2>
+        <p class="doc-p">JSON file-based persistence. Each store maps to a <code>&lt;name&gt;.datastore.json</code> file on disk. Stores are cached in memory after the first load — calling <code>silicord.DataStore("name")</code> twice returns the same instance.</p>
+
+        <div class="deprecated-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div><strong>Deprecated in v1.2.0.</strong> <code>silicord.DataStore("name")</code> still works but prints a runtime warning. Migrate to <code>silicord:GetService("DataStoreService"):GetDataStore("name")</code> — the DataStore API methods are identical. See <a href="#datastoreservice" style="color:#fee75c">DataStoreService</a> for full documentation.</div>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- ⚠ DEPRECATED — use DataStoreService instead
+local db = silicord.DataStore("PlayerData")
+
+db:SetAsync("score_user123", 500)
+local score = db:GetAsync("score_user123")
+local new_score = db:IncrementAsync("score_user123", 10)
+db:RemoveAsync("score_user123")
+
+local keys = db:GetKeys()
+for _, k in ipairs(keys) do
+    print(k, db:GetAsync(k))
+end'>copy</button></div>
+          <pre><code class="lua"><span class="cmt">-- ⚠ DEPRECATED — use DataStoreService instead</span>
+<span class="kw">local</span> db = silicord.<span class="fn">DataStore</span>(<span class="str">"PlayerData"</span>)
+
+db:<span class="fn">SetAsync</span>(<span class="str">"score_user123"</span>, <span class="num">500</span>)
+<span class="kw">local</span> score = db:<span class="fn">GetAsync</span>(<span class="str">"score_user123"</span>)
+<span class="kw">local</span> new_score = db:<span class="fn">IncrementAsync</span>(<span class="str">"score_user123"</span>, <span class="num">10</span>)
+db:<span class="fn">RemoveAsync</span>(<span class="str">"score_user123"</span>)
+
 <span class="kw">local</span> keys = db:<span class="fn">GetKeys</span>()
 <span class="kw">for</span> _, k <span class="kw">in</span> <span class="fn">ipairs</span>(keys) <span class="kw">do</span>
     <span class="fn">print</span>(k, db:<span class="fn">GetAsync</span>(k))
@@ -801,14 +1278,12 @@ db:<span class="fn">RemoveAsync</span>(<span class="str">"score_user123"</span>)
           <div class="method-row"><div><code>store:SetAsync(key, value)</code></div><div>Write any JSON-serializable value</div></div>
           <div class="method-row"><div><code>store:GetAsync(key)</code></div><div>Read a value; returns <code>nil</code> if missing</div></div>
           <div class="method-row"><div><code>store:RemoveAsync(key)</code></div><div>Delete a key</div></div>
-          <div class="method-row"><div><code>store:IncrementAsync(key, delta)</code></div><div>Add <code>delta</code> to a numeric key (default <code>+1</code>); safe against corrupt values in v1.0.0+</div></div>
+          <div class="method-row"><div><code>store:IncrementAsync(key, delta)</code></div><div>Add <code>delta</code> to a numeric key (default <code>+1</code>)</div></div>
           <div class="method-row"><div><code>store:GetKeys()</code></div><div>Returns a table of all keys in the store</div></div>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           SIGNAL
-      ════════════════════════════════════════════════════════ -->
+      <!-- SIGNAL -->
       <section class="doc-section" id="signal">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">Signal</h2>
@@ -835,14 +1310,9 @@ silicord.task.spawn(function()
     print("Resumed with:", a, b)
 end)
 
--- Built-in: listen to all non-command messages
+-- Built-in: listen to all non-command, non-bot messages
 client.OnMessage:Connect(function(message)
     print(message.author.username .. ": " .. message.content)
-end)
-
--- Built-in: catch errors
-client.OnError:Connect(function(err_type, ctx, cmd, err_msg)
-    print("[" .. err_type .. "]", cmd, err_msg)
 end)'>copy</button></div>
           <pre><code class="lua"><span class="cmt">-- Create a custom signal</span>
 <span class="kw">local</span> mySignal = silicord.Signal.<span class="fn">new</span>()
@@ -858,13 +1328,13 @@ mySignal:<span class="fn">Fire</span>(<span class="str">"hello"</span>, <span cl
 <span class="cmt">-- Disconnect later</span>
 conn.<span class="fn">Disconnect</span>()
 
-<span class="cmt">-- Yield until the signal fires</span>
+<span class="cmt">-- Yield until the signal fires (must be inside a coroutine)</span>
 silicord.task.<span class="fn">spawn</span>(<span class="kw">function</span>()
     <span class="kw">local</span> a, b = mySignal:<span class="fn">Wait</span>()
     <span class="fn">print</span>(<span class="str">"Resumed with:"</span>, a, b)
 <span class="kw">end</span>)
 
-<span class="cmt">-- Built-in: listen to all non-command messages</span>
+<span class="cmt">-- Built-in: listen to all non-command, non-bot messages</span>
 client.OnMessage:<span class="fn">Connect</span>(<span class="kw">function</span>(message)
     <span class="fn">print</span>(message.author.username .. <span class="str">": "</span> .. message.content)
 <span class="kw">end</span>)</code></pre>
@@ -879,9 +1349,7 @@ client.OnMessage:<span class="fn">Connect</span>(<span class="kw">function</span
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           STANDARD LIBRARIES
-      ════════════════════════════════════════════════════════ -->
+      <!-- STDLIB -->
       <section class="doc-section" id="stdlib">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">Standard Libraries</h2>
@@ -923,7 +1391,7 @@ local lerped  = silicord.math.lerp(0, 10, 0.5)     -- 5.0
 local parts = silicord.string.split("a,b,c", ",")  -- {"a","b","c"}
 local clean = silicord.string.trim("  hello  ")    -- "hello"
 
-local idx = silicord.table.find({"a","b","c"}, "b") -- 2
+local idx  = silicord.table.find({"a","b","c"}, "b") -- 2
 local copy = silicord.table.copy(someTable)'>copy</button></div>
           <pre><code class="lua"><span class="kw">local</span> clamped = silicord.math.<span class="fn">clamp</span>(<span class="num">150</span>, <span class="num">0</span>, <span class="num">100</span>)   <span class="cmt">-- 100</span>
 <span class="kw">local</span> lerped  = silicord.math.<span class="fn">lerp</span>(<span class="num">0</span>, <span class="num">10</span>, <span class="num">0.5</span>)     <span class="cmt">-- 5.0</span>
@@ -936,9 +1404,7 @@ local copy = silicord.table.copy(someTable)'>copy</button></div>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           COLLECTION SERVICE
-      ════════════════════════════════════════════════════════ -->
+      <!-- COLLECTION -->
       <section class="doc-section" id="collection">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">CollectionService</h2>
@@ -947,39 +1413,25 @@ local copy = silicord.table.copy(someTable)'>copy</button></div>
         <div class="code-block">
           <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='local cs = silicord.CollectionService
 
--- Tag a user ID
 cs:AddTag(message.author.id, "admin")
 cs:AddTag(message.author.id, "vip")
 
--- Check tags
 print(cs:HasTag(message.author.id, "admin"))  -- true
 
--- Get all objects with a tag
 local admins = cs:GetTagged("admin")
-for _, id in ipairs(admins) do print(id) end
+local tags   = cs:GetTags(message.author.id)  -- { "admin", "vip" }
 
--- Get all tags on an object
-local tags = cs:GetTags(message.author.id)    -- { "admin", "vip" }
-
--- Remove a tag
 cs:RemoveTag(message.author.id, "vip")'>copy</button></div>
           <pre><code class="lua"><span class="kw">local</span> cs = silicord.CollectionService
 
-<span class="cmt">-- Tag a user ID</span>
 cs:<span class="fn">AddTag</span>(message.author.id, <span class="str">"admin"</span>)
 cs:<span class="fn">AddTag</span>(message.author.id, <span class="str">"vip"</span>)
 
-<span class="cmt">-- Check tags</span>
 <span class="fn">print</span>(cs:<span class="fn">HasTag</span>(message.author.id, <span class="str">"admin"</span>))  <span class="cmt">-- true</span>
 
-<span class="cmt">-- Get all objects with a tag</span>
 <span class="kw">local</span> admins = cs:<span class="fn">GetTagged</span>(<span class="str">"admin"</span>)
-<span class="kw">for</span> _, id <span class="kw">in</span> <span class="fn">ipairs</span>(admins) <span class="kw">do</span> <span class="fn">print</span>(id) <span class="kw">end</span>
+<span class="kw">local</span> tags   = cs:<span class="fn">GetTags</span>(message.author.id)  <span class="cmt">-- { "admin", "vip" }</span>
 
-<span class="cmt">-- Get all tags on an object</span>
-<span class="kw">local</span> tags = cs:<span class="fn">GetTags</span>(message.author.id)  <span class="cmt">-- { "admin", "vip" }</span>
-
-<span class="cmt">-- Remove a tag</span>
 cs:<span class="fn">RemoveTag</span>(message.author.id, <span class="str">"vip"</span>)</code></pre>
         </div>
 
@@ -993,15 +1445,13 @@ cs:<span class="fn">RemoveTag</span>(message.author.id, <span class="str">"vip"<
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           MIDDLEWARE
-      ════════════════════════════════════════════════════════ -->
+      <!-- MIDDLEWARE -->
       <section class="doc-section" id="middleware">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">Middleware</h2>
         <p class="doc-p">Middleware hooks run before every prefix command and slash command. Return <code>false</code> to block the command. Multiple middleware functions can be registered and run in order.</p>
         <div class="code-block">
-          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- Cooldown hook (3 seconds per command per user)
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='-- Cooldown (3 seconds per user per command)
 local cooldowns = {}
 client:AddMiddleware(function(ctx, cmd, args)
     local key = ctx.author.id .. ":" .. cmd
@@ -1012,16 +1462,20 @@ client:AddMiddleware(function(ctx, cmd, args)
     cooldowns[key] = os.time()
 end)
 
--- Admin-only guard
+-- Admin-only guard using CollectionService tags
+silicord.CollectionService:AddTag(nil, "ban",  "AdminOnly")
+silicord.CollectionService:AddTag(nil, "kick", "AdminOnly")
+
 local ADMIN_ID = "123456789012345678"
 client:AddMiddleware(function(ctx, cmd, args)
-    local protected = { ban = true, kick = true, purge = true }
-    if protected[cmd] and ctx.author.id ~= ADMIN_ID then
-        ctx:Reply("You do not have permission to use this command.")
-        return false
+    if silicord.CollectionService:HasTag(nil, cmd, "AdminOnly") then
+        if ctx.author.id ~= ADMIN_ID then
+            ctx:Reply("You do not have permission to use this command.")
+            return false
+        end
     end
 end)'>copy</button></div>
-          <pre><code class="lua"><span class="cmt">-- Cooldown hook (3 seconds per command per user)</span>
+          <pre><code class="lua"><span class="cmt">-- Cooldown (3 seconds per user per command)</span>
 <span class="kw">local</span> cooldowns = {}
 client:<span class="fn">AddMiddleware</span>(<span class="kw">function</span>(ctx, cmd, args)
     <span class="kw">local</span> key = ctx.author.id .. <span class="str">":"</span> .. cmd
@@ -1032,56 +1486,45 @@ client:<span class="fn">AddMiddleware</span>(<span class="kw">function</span>(ct
     cooldowns[key] = os.<span class="fn">time</span>()
 <span class="kw">end</span>)
 
-<span class="cmt">-- Admin-only guard</span>
+<span class="cmt">-- Admin-only guard using CollectionService tags</span>
+silicord.CollectionService:<span class="fn">AddTag</span>(<span class="kw">nil</span>, <span class="str">"ban"</span>,  <span class="str">"AdminOnly"</span>)
+silicord.CollectionService:<span class="fn">AddTag</span>(<span class="kw">nil</span>, <span class="str">"kick"</span>, <span class="str">"AdminOnly"</span>)
+
 <span class="kw">local</span> ADMIN_ID = <span class="str">"123456789012345678"</span>
 client:<span class="fn">AddMiddleware</span>(<span class="kw">function</span>(ctx, cmd, args)
-    <span class="kw">local</span> protected = { ban = <span class="kw">true</span>, kick = <span class="kw">true</span>, purge = <span class="kw">true</span> }
-    <span class="kw">if</span> protected[cmd] <span class="kw">and</span> ctx.author.id ~= ADMIN_ID <span class="kw">then</span>
-        ctx:<span class="fn">Reply</span>(<span class="str">"You do not have permission to use this command."</span>)
-        <span class="kw">return false</span>
+    <span class="kw">if</span> silicord.CollectionService:<span class="fn">HasTag</span>(<span class="kw">nil</span>, cmd, <span class="str">"AdminOnly"</span>) <span class="kw">then</span>
+        <span class="kw">if</span> ctx.author.id ~= ADMIN_ID <span class="kw">then</span>
+            ctx:<span class="fn">Reply</span>(<span class="str">"You do not have permission to use this command."</span>)
+            <span class="kw">return false</span>
+        <span class="kw">end</span>
     <span class="kw">end</span>
 <span class="kw">end</span>)</code></pre>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           CACHING
-      ════════════════════════════════════════════════════════ -->
+      <!-- CACHING -->
       <section class="doc-section" id="caching">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">Caching</h2>
         <p class="doc-p">silicord automatically caches guild and user data from Discord gateway events. <code>message:GetGuild()</code> checks the cache before making an HTTP request, avoiding unnecessary API calls.</p>
         <div class="code-block">
-          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code='client.cache.guilds   -- table of raw guild data keyed by guild ID
-client.cache.users    -- table of raw user data keyed by user ID
-client.cache.bot_user -- the bot\'s own user object (set after READY)'>copy</button></div>
-          <pre><code class="lua">client.cache.guilds   <span class="cmt">-- table of raw guild data keyed by guild ID</span>
-client.cache.users    <span class="cmt">-- table of raw user data keyed by user ID</span>
+          <div class="code-header"><span class="code-lang">lua</span><button class="copy-code" data-code="client.cache.guilds   -- raw guild data keyed by guild ID
+client.cache.users    -- raw user data keyed by user ID
+client.cache.bot_user -- the bot's own user object (set after READY)">copy</button></div>
+          <pre><code class="lua">client.cache.guilds   <span class="cmt">-- raw guild data keyed by guild ID</span>
+client.cache.users    <span class="cmt">-- raw user data keyed by user ID</span>
 client.cache.bot_user <span class="cmt">-- the bot's own user object (set after READY)</span></code></pre>
-        </div>
-
-        <div class="tip-box">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          The cache is populated by <code>GUILD_CREATE</code> and <code>MESSAGE_CREATE</code> gateway events. It holds raw Discord API tables, not silicord objects. Wrap them in <code>Guild.new()</code> if you need full method access.
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           SHARDING
-      ════════════════════════════════════════════════════════ -->
+      <!-- SHARDING -->
       <section class="doc-section" id="sharding">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">Sharding</h2>
         <p class="doc-p">Sharding is fully automatic. silicord fetches the recommended shard count from Discord on startup and spawns the correct number of gateway connections with the required 5-second delay between each. You don't need to configure anything.</p>
-        <div class="tip-box">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Sharding is only needed for large bots (2500+ servers). For most bots silicord's automatic handling works transparently in the background.
-        </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           TASK SCHEDULER
-      ════════════════════════════════════════════════════════ -->
+      <!-- TASK -->
       <section class="doc-section" id="task">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">task scheduler</h2>
@@ -1111,21 +1554,21 @@ silicord.task.spawn(function()
     print("5 seconds later")
 end)
 
--- v1.0.0+: defer — runs after the current frame completes
+-- defer: runs after the current frame completes
 silicord.task.defer(function()
     print("deferred to next cycle")
 end)
 
--- v1.0.0+: delay — clean one-shot timer
+-- delay: clean one-shot timer
 silicord.task.delay(10, function()
-    print("10 seconds have passed")
+    print("10 seconds have passed!")
 end)
 
--- Practical: send a message then delete it after 5 seconds
+-- Practical: send a temp message that auto-deletes
 client:CreateCommand("temp", function(message, args)
-    message:Reply("This will disappear in 5 seconds!")
+    local response = message:Reply("This disappears in 5 seconds!")
     silicord.task.delay(5, function()
-        message:Delete()
+        response:Delete()
     end)
 end)'>copy</button></div>
           <pre><code class="lua"><span class="cmt">-- Pause inside any coroutine</span>
@@ -1137,70 +1580,90 @@ silicord.task.<span class="fn">spawn</span>(<span class="kw">function</span>()
     <span class="fn">print</span>(<span class="str">"5 seconds later"</span>)
 <span class="kw">end</span>)
 
-<span class="cmt">-- v1.0.0+: defer — runs after the current frame completes</span>
+<span class="cmt">-- defer: runs after the current frame completes</span>
 silicord.task.<span class="fn">defer</span>(<span class="kw">function</span>()
     <span class="fn">print</span>(<span class="str">"deferred to next cycle"</span>)
 <span class="kw">end</span>)
 
-<span class="cmt">-- v1.0.0+: delay — clean one-shot timer</span>
+<span class="cmt">-- delay: clean one-shot timer</span>
 silicord.task.<span class="fn">delay</span>(<span class="num">10</span>, <span class="kw">function</span>()
-    <span class="fn">print</span>(<span class="str">"10 seconds have passed"</span>)
+    <span class="fn">print</span>(<span class="str">"10 seconds have passed!"</span>)
 <span class="kw">end</span>)
 
 <span class="cmt">-- Practical: send a temp message that auto-deletes</span>
 client:<span class="fn">CreateCommand</span>(<span class="str">"temp"</span>, <span class="kw">function</span>(message, args)
-    message:<span class="fn">Reply</span>(<span class="str">"This will disappear in 5 seconds!"</span>)
+    <span class="kw">local</span> response = message:<span class="fn">Reply</span>(<span class="str">"This disappears in 5 seconds!"</span>)
     silicord.task.<span class="fn">delay</span>(<span class="num">5</span>, <span class="kw">function</span>()
-        message:<span class="fn">Delete</span>()
+        response:<span class="fn">Delete</span>()
     <span class="kw">end</span>)
 <span class="kw">end</span>)</code></pre>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════
-           CHANGELOG
-      ════════════════════════════════════════════════════════ -->
+      <!-- CHANGELOG -->
       <section class="doc-section" id="changelog">
         <div class="doc-section-label">Advanced</div>
         <h2 class="doc-section-title">Changelog</h2>
         <div class="changelog">
           <div class="changelog-item">
+            <div class="changelog-ver">v1.2.0</div>
+            <div class="changelog-body">
+              <strong>GetService system:</strong> <code>silicord:GetService()</code> with lazy-loaded <code>DataStoreService</code>, <code>HttpService</code>, <code>PresenceService</code>, and <code>AIService</code>.<br>
+              <strong>Enum:</strong> <code>Enum.Presence</code>, <code>Enum.ChannelType</code>, <code>Enum.Permissions</code>, <code>Enum.PunishmentLength</code>, <code>Enum.UserStatusInGuild</code>.<br>
+              <strong>Message chaining:</strong> <code>message:Reply()</code> and <code>message:Send()</code> now return a Message object.<br>
+              <strong>New methods:</strong> <code>message:Unreact()</code>, <code>member:GetStatus()</code>.<br>
+              <strong>Enum integration:</strong> <code>member:Timeout()</code> accepts <code>Enum.PunishmentLength</code> (including <code>Permanent</code>); <code>guild:CreateChannel()</code> accepts <code>Enum.ChannelType</code>.<br>
+              <strong>Deprecated:</strong> <code>silicord.DataStore()</code> — use <code>DataStoreService:GetDataStore()</code> instead.
+            </div>
+          </div>
+          <div class="changelog-item">
             <div class="changelog-ver">v1.1.0</div>
             <div class="changelog-body">
-              <strong>New features:</strong> Multi-bug patch, fixed <code>WebSocket</code> connection issues, improved error handling, and various optimizations.
+              <strong>18 bug fixes:</strong> <code>OnMessage</code> now fires correctly for plain messages; nil author guard for webhook/system messages; Signal fire snapshot safety; Signal:Wait coroutine guard; WebSocket large-frame header fix; GET request body fix; rate-limit retry cap; embed detection overhaul; ActionRow empty component guard; legacy ActionRow flatten fix; Lua 5.1 <code>unpack</code> compat shim; DataStore variable shadowing fix; Guild:CreateRole color fix; Message:Edit nil id guard; Run error type safety.
             </div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v1.0.0</div>
             <div class="changelog-body">
-              <strong>DataStore safety:</strong> <code>IncrementAsync</code> now handles corrupt/empty/locked JSON without crashing; writes use atomic temp-file swapping; corrupt files are auto-backed-up.
-              <br><strong>Color3 UX:</strong> <code>Color3</code> objects can be passed directly to all color fields — no more <code>:ToInt()</code>.
-              <br><strong>task.defer():</strong> Defers a function to the next scheduler cycle to avoid stack overflows.
-              <br><strong>task.delay():</strong> Clean one-shot timer — call a function after <code>n</code> seconds without a manual loop.
-              <br><strong>Instance.new("SelectMenu") and Instance.new("ActionRow"):</strong> OOP classes added to match Embed and Button.
-              <br><strong>Deprecation warnings:</strong> <code>silicord.Embed()</code>, <code>silicord.Button()</code>, <code>silicord.SelectMenu()</code>, and <code>silicord.ActionRow()</code> now print runtime warnings. Migrate to <code>silicord.Instance.new()</code>.
+              <strong>DataStore safety:</strong> <code>IncrementAsync</code> now handles corrupt/empty/locked JSON without crashing; writes use atomic temp-file swapping; corrupt files are auto-backed-up.<br>
+              <strong>Color3 UX:</strong> <code>Color3</code> objects can be passed directly to all color fields — no more <code>:ToInt()</code>.<br>
+              <strong>task.defer():</strong> Defers a function to the next scheduler cycle to avoid stack overflows.<br>
+              <strong>task.delay():</strong> Clean one-shot timer — call a function after <code>n</code> seconds without a manual loop.<br>
+              <strong>Instance.new("SelectMenu") and Instance.new("ActionRow"):</strong> OOP classes added to match Embed and Button.<br>
+              <strong>Deprecation warnings:</strong> <code>silicord.Embed()</code>, <code>silicord.Button()</code>, <code>silicord.SelectMenu()</code>, and <code>silicord.ActionRow()</code> now print runtime warnings. Migrate to <code>silicord.Instance.new()</code>.
             </div>
           </div>
-
           <div class="changelog-item">
             <div class="changelog-ver">v0.4.3</div>
             <div class="changelog-body">Added a favicon</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.4.2</div>
-            <div class="changelog-body">Fixed minor bugs and typos</div>
+            <div class="changelog-body">Fixed typo in README.md</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.4.1</div>
-            <div class="changelog-body">Transferred ownership of silicord to silicord organization</div>
+            <div class="changelog-body">Added new website: https://silicord.github.io/</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.4.0</div>
-            <div class="changelog-body">Introduced the new https://silicord.github.io/ webpage</div>
+            <div class="changelog-body">Added custom error handling via <code>client.OnError</code></div>
+          </div>
+          <div class="changelog-item">
+            <div class="changelog-ver">v0.3.3</div>
+            <div class="changelog-body">Minor bug fixes and improvements</div>
+          </div>
+          <div class="changelog-item">
+            <div class="changelog-ver">v0.3.2</div>
+            <div class="changelog-body">Introduced token validation before startup</div>
+          </div>
+          <div class="changelog-item">
+            <div class="changelog-ver">v0.3.1</div>
+            <div class="changelog-body">Improved error messages for easier debugging</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.3.0</div>
-            <div class="changelog-body">Member object with <code>:Kick()</code>, <code>:Ban()</code>, <code>:Timeout()</code>, <code>:RemoveTimeout()</code>, <code>:GiveRole()</code>, <code>:RemoveRole()</code>, <code>:SetNickname()</code>, <code>:ResetNickname()</code>, <code>:SendDM()</code>; expanded channel types (stage, forum, media, announcement, category); channel/role editing and deletion; scheduled events; <code>message:Send()</code>; <code>message:Edit()</code>; <code>message:Pin()</code> / <code>:Unpin()</code>; <code>message:GetMember()</code> and <code>interaction:GetMember()</code>; <code>guild:Edit()</code>.</div>
+            <div class="changelog-body">Member object with full moderation actions; expanded channel types; channel/role editing and deletion; scheduled events; <code>message:Send()</code>, <code>message:Edit()</code>, <code>message:Pin()</code>, <code>message:Unpin()</code>; <code>message:GetMember()</code> and <code>interaction:GetMember()</code>; <code>guild:Edit()</code>.</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.2.2</div>
@@ -1208,11 +1671,11 @@ client:<span class="fn">CreateCommand</span>(<span class="str">"temp"</span>, <s
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.2.0</div>
-            <div class="changelog-body">Guild object, reactions (<code>message:React()</code>), embeds (<code>silicord.Embed()</code>), DMs, prefix command arguments, slash commands, <code>task.wait()</code>.</div>
+            <div class="changelog-body">Guild object, reactions (<code>message:React()</code>), embeds, DMs, prefix command arguments, slash commands, <code>task.wait()</code>.</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.1.0</div>
-            <div class="changelog-body">Initial release: basic <code>:Reply()</code> syntax, WebSocket gateway connection.</div>
+            <div class="changelog-body">silicord prototype — basic <code>:Reply()</code>, WebSocket gateway connection.</div>
           </div>
           <div class="changelog-item">
             <div class="changelog-ver">v0.0.2</div>
@@ -1230,7 +1693,7 @@ client:<span class="fn">CreateCommand</span>(<span class="str">"temp"</span>, <s
       <p class="footer-copy">MIT License: made by mrpandolaofficial-art</p>
       <div class="footer-links">
         <a href="https://luarocks.org/modules/mrpandolaofficial-art/silicord" target="_blank">LuaRocks</a>
-        <a href="https://github.com/mrpandolaofficial-art/silicord" target="_blank">GitHub</a>
+        <a href="https://github.com/mrpandolaofficial/silicord" target="_blank">GitHub</a>
         <a href="https://discord.com/developers/applications" target="_blank">Dev Portal</a>
       </div>
     </div>
